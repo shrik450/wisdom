@@ -1,5 +1,3 @@
-.PHONY: fmt lint test build run
-
 fmt:
 	go fmt ./...
 

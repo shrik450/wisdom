@@ -10,12 +10,13 @@ Current implementation notes:
 ## Prerequisites
 
 - Go 1.25+
+- just
 
 ## Quickstart
 
 ```bash
 cp .env.example .env
-make run
+just run
 ```
 
 Server starts on `:8080` by default and creates `./data/wisdom.db`.
@@ -28,8 +29,8 @@ curl http://localhost:8080/healthz
 
 ## Commands
 
-- `make fmt`
-- `make lint`
-- `make test`
-- `make build`
-- `make run`
+- `just fmt`
+- `just lint`
+- `just test`
+- `just build`
+- `just run`

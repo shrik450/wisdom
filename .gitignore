@@ -10,3 +10,12 @@ backend/data/
 
 # SwiftPM artifacts
 .build/
+
+# Keep project agent skill definition tracked.
+!.claude
+.claude/*
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/agent-review/
+.claude/skills/agent-review/*
+!.claude/skills/agent-review/SKILL.md
