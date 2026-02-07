@@ -19,3 +19,6 @@ backend/data/
 !.claude/skills/agent-review/
 .claude/skills/agent-review/*
 !.claude/skills/agent-review/SKILL.md
+!.claude/skills/agent-blackbox-test/
+.claude/skills/agent-blackbox-test/*
+!.claude/skills/agent-blackbox-test/SKILL.md
