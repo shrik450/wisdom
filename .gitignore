@@ -1,0 +1,12 @@
+.DS_Store
+
+# Backend runtime files
+backend/.env
+backend/data/
+
+# Xcode user state
+**/xcuserdata/
+**/*.xcuserstate
+
+# SwiftPM artifacts
+.build/
