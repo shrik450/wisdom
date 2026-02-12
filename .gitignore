@@ -25,3 +25,10 @@ go.work.sum
 # env file
 .env
 
+# UI
+ui/dist/
+ui/node_modules/
+
+# Dev/build outputs
+server/tmp/
+dist/
