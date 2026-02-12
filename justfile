@@ -6,11 +6,15 @@ default:
 
 # Build the server binary
 build:
-    cd {{server_dir}} && go build -o bin/wisdom .
+    cd {{server_dir}} && go build -o bin/wisdom ./cmd/wisdom
 
 # Run the server
 run:
-    cd {{server_dir}} && go run .
+    cd {{server_dir}} && go run ./cmd/wisdom
+
+# Run the server in watch mode (includes UI watch/build)
+dev:
+    ./scripts/dev.sh
 
 # Run tests
 test:
@@ -38,7 +42,11 @@ tidy:
 
 # Clean build artifacts
 clean:
-    rm -rf {{server_dir}}/bin
+    rm -rf {{server_dir}}/bin {{server_dir}}/tmp
+
+# Bundle UI + example configs
+bundle:
+    ./scripts/bundle.sh
 
 # Run vet and fmt-check
 check: vet fmt-check

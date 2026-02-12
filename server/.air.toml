@@ -1,0 +1,14 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+entrypoint = "tmp/wisdom"
+cmd = "go build -o ./tmp/wisdom ./cmd/wisdom"
+exclude_dir = ["tmp"]
+include_ext = ["go"]
+
+[log]
+time = true
+
+[env]
+WISDOM_DEV = "1"
