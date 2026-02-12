@@ -1,0 +1,27 @@
+{
+  "name": "wisdom-ui",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "react": "latest",
+    "react-dom": "latest"
+  },
+  "devDependencies": {
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@eslint/js": "9.21.0",
+    "eslint": "9.21.0",
+    "eslint-plugin-react": "7.37.4",
+    "eslint-plugin-react-hooks": "5.2.0",
+    "globals": "15.15.0",
+    "prettier": "3.5.3",
+    "typescript-eslint": "8.25.0",
+    "typescript": "5.7.3"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  }
+}
