@@ -298,4 +298,3 @@ func TestContext(t *testing.T) {
 		}
 	})
 }
-
