@@ -270,6 +270,50 @@ func TestFileOperations(t *testing.T) {
 		}
 	})
 
+	t.Run("Move", func(t *testing.T) {
+		if err := ws.WriteFile("before.txt", []byte("rename me"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := ws.Move("before.txt", "after.txt"); err != nil {
+			t.Fatalf("Move: %v", err)
+		}
+		got, err := ws.ReadFile("after.txt")
+		if err != nil {
+			t.Fatalf("ReadFile after rename: %v", err)
+		}
+		if string(got) != "rename me" {
+			t.Fatalf("got %q, want %q", got, "rename me")
+		}
+		_, err = ws.Stat("before.txt")
+		if err == nil {
+			t.Fatal("old name still exists after rename")
+		}
+	})
+
+	t.Run("Move destination outside workspace", func(t *testing.T) {
+		if err := ws.WriteFile("src.txt", []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		err := ws.Move("src.txt", "../../escape.txt")
+		if !errors.Is(err, workspace.ErrOutsideWorkspace) {
+			t.Fatalf("expected ErrOutsideWorkspace, got: %v", err)
+		}
+	})
+
+	t.Run("Move source outside workspace", func(t *testing.T) {
+		err := ws.Move("../../etc/passwd", "stolen.txt")
+		if !errors.Is(err, workspace.ErrOutsideWorkspace) {
+			t.Fatalf("expected ErrOutsideWorkspace, got: %v", err)
+		}
+	})
+
+	t.Run("Move non-existent source", func(t *testing.T) {
+		err := ws.Move("nonexistent.txt", "dest.txt")
+		if err == nil {
+			t.Fatal("expected error for non-existent source")
+		}
+	})
+
 	t.Run("ReadFile with escaping path", func(t *testing.T) {
 		_, err := ws.ReadFile("../../../etc/passwd")
 		if !errors.Is(err, workspace.ErrOutsideWorkspace) {

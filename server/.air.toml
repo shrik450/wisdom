@@ -1,5 +1,6 @@
 root = "."
 tmp_dir = "tmp"
+env_files = ["../.env"]
 
 [build]
 entrypoint = "tmp/wisdom"
@@ -9,6 +10,3 @@ include_ext = ["go"]
 
 [log]
 time = true
-
-[env]
-WISDOM_DEV = "1"
