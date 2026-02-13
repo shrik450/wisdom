@@ -3,7 +3,6 @@ package api
 import (
 	"encoding/json"
 	"errors"
-	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -134,13 +133,7 @@ func handlePut(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	if err := ws.WriteFile(p, body, 0o644); err != nil {
+	if err := ws.WriteStream(p, r.Body, 0o644); err != nil {
 		mapError(w, err)
 		return
 	}

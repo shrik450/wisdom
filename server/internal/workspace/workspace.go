@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -87,6 +88,46 @@ func (w *Workspace) WriteFile(name string, data []byte, perm fs.FileMode) error 
 		return err
 	}
 	return os.WriteFile(p, data, perm)
+}
+
+// WriteStream atomically writes the contents of r to name. It streams through
+// a temporary file in the same directory, then renames into place. This keeps
+// memory usage constant regardless of file size and avoids leaving partial
+// files on failure.
+func (w *Workspace) WriteStream(name string, r io.Reader, perm fs.FileMode) error {
+	p, err := w.resolve(name)
+	if err != nil {
+		return err
+	}
+
+	tmp, err := os.CreateTemp(filepath.Dir(p), ".wisdom-tmp-*")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer func() {
+		if tmpName != "" {
+			os.Remove(tmpName)
+		}
+	}()
+
+	if _, err := io.Copy(tmp, r); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Chmod(perm); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+
+	if err := os.Rename(tmpName, p); err != nil {
+		return err
+	}
+	tmpName = "" // prevent deferred cleanup
+	return nil
 }
 
 func (w *Workspace) MkdirAll(name string, perm fs.FileMode) error {
