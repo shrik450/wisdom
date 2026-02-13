@@ -129,6 +129,18 @@ func (w *Workspace) Remove(name string) error {
 	return os.Remove(p)
 }
 
+func (w *Workspace) Move(oldname, newname string) error {
+	oldpath, err := w.resolve(oldname)
+	if err != nil {
+		return err
+	}
+	newpath, err := w.resolve(newname)
+	if err != nil {
+		return err
+	}
+	return os.Rename(oldpath, newpath)
+}
+
 // ReadDir lists entries in a workspace-relative directory.
 func (w *Workspace) ReadDir(name string) ([]fs.DirEntry, error) {
 	p, err := w.resolve(name)
