@@ -50,14 +50,22 @@ func fsHandler() http.Handler {
 }
 
 func fsPath(r *http.Request) string {
-	p := strings.TrimPrefix(filepath.Clean(r.PathValue("path")), "/")
+	p := normalizePath(r.PathValue("path"))
+	if p == "." {
+		return "."
+	}
+	return p
+}
+
+func normalizePath(p string) string {
+	p = strings.TrimPrefix(filepath.Clean(p), "/")
 	if p == "" || p == "." {
 		return "."
 	}
 	return p
 }
 
-func isProtectedDeletePath(p string) bool {
+func isProtectedPath(p string) bool {
 	return p == "." || p == "ui"
 }
 
@@ -93,10 +101,13 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(result); err != nil {
-			mapError(w, err)
+		data, err := json.Marshal(result)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(data)
 		return
 	}
 
@@ -138,13 +149,7 @@ func handlePut(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	if err := ws.WriteFile(p, body, 0o644); err != nil {
+	if err := ws.WriteStream(p, r.Body, 0o644); err != nil {
 		mapError(w, err)
 		return
 	}
@@ -173,7 +178,7 @@ func handleDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if isProtectedDeletePath(p) && !req.Force {
+	if isProtectedPath(p) && !req.Force {
 		http.Error(w, "path is protected; set force=true to delete", http.StatusBadRequest)
 		return
 	}
@@ -207,8 +212,13 @@ func handlePatch(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "destination is required", http.StatusBadRequest)
 		return
 	}
+	dst := normalizePath(req.Destination)
+	if (isProtectedPath(p) || isProtectedPath(dst)) && !req.Force {
+		http.Error(w, "path is protected; set force=true to move", http.StatusBadRequest)
+		return
+	}
 
-	dstPath, err := ws.Resolve(req.Destination)
+	dstPath, err := ws.Resolve(dst)
 	if err != nil {
 		mapError(w, err)
 		return
@@ -221,7 +231,7 @@ func handlePatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := ws.Move(p, req.Destination); err != nil {
+	if err := ws.Move(p, dst); err != nil {
 		mapError(w, err)
 		return
 	}
@@ -239,9 +249,12 @@ func handlePatch(w http.ResponseWriter, r *http.Request) {
 		IsDir:   info.IsDir(),
 	}
 
+	data, err := json.Marshal(entry)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	w.Header().Set("Last-Modified", info.ModTime().UTC().Format(http.TimeFormat))
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(entry); err != nil {
-		mapError(w, err)
-	}
+	w.Write(data)
 }
