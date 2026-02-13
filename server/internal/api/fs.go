@@ -3,7 +3,6 @@ package api
 import (
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -88,10 +87,13 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(result); err != nil {
-			slog.Error("writing directory listing response", "path", p, "err", err)
+		data, err := json.Marshal(result)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(data)
 		return
 	}
 
@@ -207,9 +209,12 @@ func handlePatch(w http.ResponseWriter, r *http.Request) {
 		IsDir:   info.IsDir(),
 	}
 
+	data, err := json.Marshal(entry)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	w.Header().Set("Last-Modified", info.ModTime().UTC().Format(http.TimeFormat))
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(entry); err != nil {
-		slog.Error("writing move response", "path", req.Destination, "err", err)
-	}
+	w.Write(data)
 }
