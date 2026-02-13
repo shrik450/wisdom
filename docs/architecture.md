@@ -26,6 +26,21 @@ The backend server is written in Go and has the following responsibilities:
    and has esbuild as a dependency to watch and build on any changes in the
    `ui` directory.
 
+### Workspace Boundary
+
+The `internal/workspace` package treats the workspace root as the filesystem
+boundary for normal operations. Paths are resolved and validated to stay inside
+that root before file operations are run.
+
+There is one intentional exception: `Workspace.WriteStream` stages uploads in a
+system temporary file outside the workspace, then renames the fully written
+file into the workspace destination.
+
+This exception exists so the destination path is not touched until the upload
+is complete, which avoids partial files in the workspace on write failures.
+Only this temporary staging file is created outside the workspace, and it is
+removed on failure or after a successful rename.
+
 ## Frontend
 
 The frontend is currently a TypeScript React SPA, but the exact framework can

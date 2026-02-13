@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -89,6 +90,48 @@ func (w *Workspace) WriteFile(name string, data []byte, perm fs.FileMode) error 
 	return os.WriteFile(p, data, perm)
 }
 
+// WriteStream atomically writes the contents of r to name. It streams through
+// a temporary file, then renames into place. This keeps memory usage constant
+// regardless of file size and avoids leaving partial files on failure.
+// The temporary file is intentionally created in the system temp directory
+// outside the workspace so the destination directory is not touched until the
+// file is fully written.
+func (w *Workspace) WriteStream(name string, r io.Reader, perm fs.FileMode) error {
+	p, err := w.resolve(name)
+	if err != nil {
+		return err
+	}
+
+	tmp, err := os.CreateTemp("", ".wisdom-tmp-*")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer func() {
+		if tmpName != "" {
+			os.Remove(tmpName)
+		}
+	}()
+
+	if _, err := io.Copy(tmp, r); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Chmod(perm); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+
+	if err := os.Rename(tmpName, p); err != nil {
+		return err
+	}
+	tmpName = "" // prevent deferred cleanup
+	return nil
+}
+
 func (w *Workspace) MkdirAll(name string, perm fs.FileMode) error {
 	p, err := w.resolve(name)
 	if err != nil {
@@ -127,6 +170,26 @@ func (w *Workspace) Remove(name string) error {
 		return err
 	}
 	return os.Remove(p)
+}
+
+func (w *Workspace) RemoveAll(name string) error {
+	p, err := w.resolve(name)
+	if err != nil {
+		return err
+	}
+	return os.RemoveAll(p)
+}
+
+func (w *Workspace) Move(oldname, newname string) error {
+	oldpath, err := w.resolve(oldname)
+	if err != nil {
+		return err
+	}
+	newpath, err := w.resolve(newname)
+	if err != nil {
+		return err
+	}
+	return os.Rename(oldpath, newpath)
 }
 
 // ReadDir lists entries in a workspace-relative directory.

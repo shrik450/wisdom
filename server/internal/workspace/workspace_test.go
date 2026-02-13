@@ -196,6 +196,57 @@ func TestFileOperations(t *testing.T) {
 		}
 	})
 
+	t.Run("WriteStream roundtrip", func(t *testing.T) {
+		if err := ws.WriteStream("streamed.txt", strings.NewReader("streamed content"), 0o644); err != nil {
+			t.Fatalf("WriteStream: %v", err)
+		}
+		got, err := ws.ReadFile("streamed.txt")
+		if err != nil {
+			t.Fatalf("ReadFile: %v", err)
+		}
+		if string(got) != "streamed content" {
+			t.Fatalf("got %q, want %q", got, "streamed content")
+		}
+	})
+
+	t.Run("WriteStream overwrites atomically", func(t *testing.T) {
+		if err := ws.WriteFile("overwrite.txt", []byte("original"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := ws.WriteStream("overwrite.txt", strings.NewReader("replaced"), 0o644); err != nil {
+			t.Fatalf("WriteStream: %v", err)
+		}
+		got, err := ws.ReadFile("overwrite.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(got) != "replaced" {
+			t.Fatalf("got %q, want %q", got, "replaced")
+		}
+	})
+
+	t.Run("WriteStream with traversal path", func(t *testing.T) {
+		err := ws.WriteStream("../../escape.txt", strings.NewReader("bad"), 0o644)
+		if !errors.Is(err, workspace.ErrOutsideWorkspace) {
+			t.Fatalf("expected ErrOutsideWorkspace, got: %v", err)
+		}
+	})
+
+	t.Run("WriteStream leaves no temp files on success", func(t *testing.T) {
+		if err := ws.WriteStream("clean.txt", strings.NewReader("data"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		entries, err := ws.ReadDir(".")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, e := range entries {
+			if strings.HasPrefix(e.Name(), ".wisdom-tmp-") {
+				t.Fatalf("found leftover temp file: %s", e.Name())
+			}
+		}
+	})
+
 	t.Run("MkdirAll and WriteFile into new dir", func(t *testing.T) {
 		if err := ws.MkdirAll("sub/dir", 0o755); err != nil {
 			t.Fatalf("MkdirAll: %v", err)
@@ -267,6 +318,72 @@ func TestFileOperations(t *testing.T) {
 		_, err := ws.Stat("todelete.txt")
 		if err == nil {
 			t.Fatal("expected error after Remove, file still exists")
+		}
+	})
+
+	t.Run("RemoveAll", func(t *testing.T) {
+		if err := ws.MkdirAll("rmdir/child", 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := ws.WriteFile("rmdir/child/file.txt", []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := ws.RemoveAll("rmdir"); err != nil {
+			t.Fatalf("RemoveAll: %v", err)
+		}
+		if _, err := ws.Stat("rmdir"); err == nil {
+			t.Fatal("directory still exists after RemoveAll")
+		}
+	})
+
+	t.Run("RemoveAll outside workspace", func(t *testing.T) {
+		err := ws.RemoveAll("../../escape")
+		if !errors.Is(err, workspace.ErrOutsideWorkspace) {
+			t.Fatalf("expected ErrOutsideWorkspace, got: %v", err)
+		}
+	})
+
+	t.Run("Move", func(t *testing.T) {
+		if err := ws.WriteFile("before.txt", []byte("rename me"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := ws.Move("before.txt", "after.txt"); err != nil {
+			t.Fatalf("Move: %v", err)
+		}
+		got, err := ws.ReadFile("after.txt")
+		if err != nil {
+			t.Fatalf("ReadFile after rename: %v", err)
+		}
+		if string(got) != "rename me" {
+			t.Fatalf("got %q, want %q", got, "rename me")
+		}
+		_, err = ws.Stat("before.txt")
+		if err == nil {
+			t.Fatal("old name still exists after rename")
+		}
+	})
+
+	t.Run("Move destination outside workspace", func(t *testing.T) {
+		if err := ws.WriteFile("src.txt", []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		err := ws.Move("src.txt", "../../escape.txt")
+		if !errors.Is(err, workspace.ErrOutsideWorkspace) {
+			t.Fatalf("expected ErrOutsideWorkspace, got: %v", err)
+		}
+	})
+
+	t.Run("Move source outside workspace", func(t *testing.T) {
+		err := ws.Move("../../etc/passwd", "stolen.txt")
+		if !errors.Is(err, workspace.ErrOutsideWorkspace) {
+			t.Fatalf("expected ErrOutsideWorkspace, got: %v", err)
+		}
+	})
+
+	t.Run("Move non-existent source", func(t *testing.T) {
+		err := ws.Move("nonexistent.txt", "dest.txt")
+		if err == nil {
+			t.Fatal("expected error for non-existent source")
 		}
 	})
 
