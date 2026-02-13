@@ -129,6 +129,14 @@ func (w *Workspace) Remove(name string) error {
 	return os.Remove(p)
 }
 
+func (w *Workspace) RemoveAll(name string) error {
+	p, err := w.resolve(name)
+	if err != nil {
+		return err
+	}
+	return os.RemoveAll(p)
+}
+
 func (w *Workspace) Move(oldname, newname string) error {
 	oldpath, err := w.resolve(oldname)
 	if err != nil {

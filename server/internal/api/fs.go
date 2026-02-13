@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -90,7 +91,7 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(result); err != nil {
-			mapError(w, err)
+			slog.Error("writing directory listing response", "path", p, "err", err)
 		}
 		return
 	}
@@ -160,7 +161,18 @@ func handleDelete(w http.ResponseWriter, r *http.Request) {
 	ws := workspace.FromContext(r.Context())
 	p := fsPath(r)
 
-	if err := ws.Remove(p); err != nil {
+	info, err := ws.Stat(p)
+	if err != nil {
+		mapError(w, err)
+		return
+	}
+
+	if info.IsDir() {
+		err = ws.RemoveAll(p)
+	} else {
+		err = ws.Remove(p)
+	}
+	if err != nil {
 		mapError(w, err)
 		return
 	}
@@ -205,6 +217,6 @@ func handlePatch(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Last-Modified", info.ModTime().UTC().Format(http.TimeFormat))
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(entry); err != nil {
-		mapError(w, err)
+		slog.Error("writing move response", "path", req.Destination, "err", err)
 	}
 }

@@ -294,6 +294,28 @@ func TestDelete(t *testing.T) {
 			t.Fatalf("expected 204, got %d", resp.StatusCode)
 		}
 	})
+
+	t.Run("delete non-empty directory", func(t *testing.T) {
+		if err := ws.MkdirAll("fulldir/sub", 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := ws.WriteFile("fulldir/a.txt", []byte("a"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := ws.WriteFile("fulldir/sub/b.txt", []byte("b"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		resp := doRequest(t, "DELETE", srv.URL+"/api/fs/fulldir", nil)
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 204 {
+			t.Fatalf("expected 204, got %d", resp.StatusCode)
+		}
+		if _, err := ws.Stat("fulldir"); err == nil {
+			t.Fatal("directory still exists")
+		}
+	})
 }
 
 func TestPatch(t *testing.T) {
@@ -420,13 +442,20 @@ func TestDirectoryEntryFields(t *testing.T) {
 	}
 }
 
-// Verify that there are no leftover test artifacts outside the temp dirs.
-func TestCleanup(t *testing.T) {
-	// This is a sentinel test — if any test above leaks files via path
-	// traversal, /tmp/wisdom-escape-test would exist. We use a unique
-	// name to avoid false positives.
-	_, err := os.Stat(filepath.Join(os.TempDir(), "wisdom-escape-test"))
-	if err == nil {
-		t.Fatal("found escaped file — path traversal protection failed")
+func TestPutPathTraversal(t *testing.T) {
+	srv, _ := newTestServer(t)
+
+	sentinel := filepath.Join(os.TempDir(), "wisdom-escape-test")
+	os.Remove(sentinel)
+	t.Cleanup(func() { os.Remove(sentinel) })
+
+	resp := doRequest(t, "PUT", srv.URL+"/api/fs/../../../../../../"+sentinel, strings.NewReader("escaped"))
+	defer resp.Body.Close()
+
+	if resp.StatusCode == 201 || resp.StatusCode == 204 {
+		t.Fatalf("path traversal PUT should not succeed, got %d", resp.StatusCode)
+	}
+	if _, err := os.Stat(sentinel); err == nil {
+		t.Fatal("path traversal wrote a file outside the workspace")
 	}
 }

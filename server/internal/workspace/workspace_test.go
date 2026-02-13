@@ -270,6 +270,28 @@ func TestFileOperations(t *testing.T) {
 		}
 	})
 
+	t.Run("RemoveAll", func(t *testing.T) {
+		if err := ws.MkdirAll("rmdir/child", 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := ws.WriteFile("rmdir/child/file.txt", []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := ws.RemoveAll("rmdir"); err != nil {
+			t.Fatalf("RemoveAll: %v", err)
+		}
+		if _, err := ws.Stat("rmdir"); err == nil {
+			t.Fatal("directory still exists after RemoveAll")
+		}
+	})
+
+	t.Run("RemoveAll outside workspace", func(t *testing.T) {
+		err := ws.RemoveAll("../../escape")
+		if !errors.Is(err, workspace.ErrOutsideWorkspace) {
+			t.Fatalf("expected ErrOutsideWorkspace, got: %v", err)
+		}
+	})
+
 	t.Run("Move", func(t *testing.T) {
 		if err := ws.WriteFile("before.txt", []byte("rename me"), 0o644); err != nil {
 			t.Fatal(err)
