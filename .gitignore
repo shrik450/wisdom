@@ -32,3 +32,5 @@ ui/node_modules/
 # Dev/build outputs
 server/tmp/
 dist/
+
+playwright_snapshots 

@@ -72,7 +72,59 @@ Use semantic HTML elements as far as possible. For example, prefer `<main>`,
 This project uses Tailwind. Use standard tailwind best practices: define
 components to encapsulate shared styles.
 
+Component extraction rule:
+1. Extract a UI component only when both are true:
+   - It is semantically reusable (the "name test": there is an obvious stable name for it).
+   - It is used in 2 or more places.
+2. If styles/markup are single-use and readable, keep them inline.
+3. Do not create one-off wrapper components just to avoid a className string.
+4. Keep shell-local components in the same file and unexported; only move/export
+   when reused elsewhere.
+
 In TypeScript, avoid `any` or `object` at all costs. Type things with the best
 known type. If a types starts to get gnarly, consider if that function or
 interface should be refactored to allow types to be simpler instead. Do not
 reach for complex type definitions unless expressly allowed.
+
+When writing CSS, consider that this isn't a mass appeal, "normal" site. You
+don't have to design for the median.
+
+## Working Notes
+
+### UI
+
+Very frequently, a UI change session goes like:
+
+1. I request a change.
+2. You implement the change, but that breaks something else.
+3. I tell you about the breakage, you fix that but something *else* breaks too.
+4. Repeat.
+
+This is awful, and you must do everything you can to prevent this from
+happening. Here are a few approaches you can take:
+
+1. Think globally, not locally. Do not make changes just to fix an immediate
+   issue: consider the code design and structure and fix things via a root
+   cause. Whenever you make a change, take a global view of it too, stepping out
+   of the local context (like the parent div or component) into the full tree to
+   understand if this works. You can often figure out if something broke by
+   looking at the final state of the file again.
+
+2. Use a Python script using Playwright with inline script metadata and run it
+   with uv. Take plenty of screenshots and analyze them in detail for both
+   aesthetics and functionality. Write thorough scripts that test functionality
+   and visuals: multiple view ports, multiple states, different cases a user could
+   see this UI in etc. This should mean that if your change introduces a
+   regression elsewhere, you should catch that immediately. If you find yourself
+   testing something often, make that a UI test! When you're done with a test,
+   clean up any temporary scripts or turn them into proper UI tests.
+
+3. Don't stop at "this works". Think about if this is **good**. If there are
+   clear usability issues and bugs, don't assume your work is done just because
+   I haven't flagged them.
+
+4. If you find yourself just adding magic-numbered utility classes to make
+   things work, you're probably doing something wrong. Do not be afraid to
+   rethink your approach and layout from scratch; you'll often find that it's
+   easier to re-write a component or a view to get the desired effect instead of
+   jiggling utility classes around.

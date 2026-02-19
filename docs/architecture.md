@@ -53,6 +53,9 @@ change. It has the following responsibilities and architecture constraints:
    dependencies are vendored in a `vendor` directory.
 4. Users can customize the UI, including viewers, as they please by editing the
    code live.
+5. The mobile navigation drawer remains mounted while closed so CSS transitions
+   stay smooth. This is an intentional mobile-only accessibility tradeoff in
+   this project; treat it as accepted unless product requirements change.
 
 ## Custom User Written files
 

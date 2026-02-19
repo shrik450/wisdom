@@ -1,8 +1,16 @@
+import { Route, Switch, Redirect } from "wouter";
+import { Shell } from "./components/shell";
+import { WorkspaceView } from "./pages/workspace";
+
 export function App() {
   return (
-    <main className="min-h-screen p-6">
-      <h1 className="text-2xl font-semibold">Wisdom</h1>
-      <p className="mt-2 text-slate-600">Hello, world!</p>
-    </main>
+    <Shell>
+      <Switch>
+        <Route path="/">
+          <Redirect to="/ws/" />
+        </Route>
+        <Route path="/ws/*" component={WorkspaceView} />
+      </Switch>
+    </Shell>
   );
 }
