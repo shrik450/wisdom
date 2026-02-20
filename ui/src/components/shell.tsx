@@ -15,7 +15,13 @@ import {
   buildBreadcrumbs,
   buildWorkspaceHref,
   decodeWorkspaceRoutePath,
+  joinWorkspacePath,
+  normalizeWorkspacePath,
 } from "../path-utils";
+import { createDirectory, writeFile } from "../api/fs";
+import { ApiError } from "../api/types";
+import { useWorkspaceEntryInfo } from "../hooks/use-workspace-entry-info";
+import { getWorkspaceEntryInfo } from "../workspace-entry-info";
 import { SidebarNav } from "./sidebar";
 import { shellReducer, type ShellState } from "./shell-state";
 
@@ -54,42 +60,240 @@ function getFocusableElements(container: HTMLElement): HTMLElement[] {
   });
 }
 
-function Breadcrumbs() {
+function isValidCreatePath(path: string): boolean {
+  if (path === "" || path.startsWith("/")) {
+    return false;
+  }
+  const segments = path.split("/");
+  if (segments.length === 0) {
+    return false;
+  }
+  return segments.every((segment) => {
+    return segment.length > 0 && segment !== "." && segment !== "..";
+  });
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    return error.body || error.message;
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return "Request failed";
+}
+
+interface BreadcrumbsProps {
+  onWorkspaceMutated: () => void;
+}
+
+function Breadcrumbs({ onWorkspaceMutated }: BreadcrumbsProps) {
   const [, params] = useRoute("/ws/*");
+  const [, navigate] = useLocation();
   const encodedPath = params?.["*"] ?? "";
-  const path = decodeWorkspaceRoutePath(encodedPath);
+  const path = normalizeWorkspacePath(decodeWorkspaceRoutePath(encodedPath));
   const breadcrumbs = buildBreadcrumbs(path);
+  const {
+    data: entryInfo,
+    loading: entryInfoLoading,
+    error: entryInfoError,
+  } = useWorkspaceEntryInfo(path);
+  const [creating, setCreating] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [createPending, setCreatePending] = useState(false);
+  const createInputRef = useRef<HTMLInputElement>(null);
+
+  const isFileRoute = entryInfo?.kind === "file";
+  const shouldReplaceCurrentCrumb =
+    creating && isFileRoute && breadcrumbs.length > 0;
+
+  const basePath =
+    entryInfo?.kind === "file" || entryInfo?.kind === "missing"
+      ? entryInfo.parentPath
+      : path;
+
+  useEffect(() => {
+    setCreating(false);
+    setDraft("");
+    setCreateError(null);
+    setCreatePending(false);
+  }, [path]);
+
+  useEffect(() => {
+    if (creating) {
+      createInputRef.current?.focus();
+    }
+  }, [creating]);
+
+  const closeComposer = useCallback(() => {
+    if (createPending) {
+      return;
+    }
+    setCreating(false);
+    setDraft("");
+    setCreateError(null);
+  }, [createPending]);
+
+  const openComposer = useCallback(() => {
+    if (entryInfoLoading || createPending) {
+      return;
+    }
+    setCreateError(null);
+    setCreating(true);
+  }, [entryInfoLoading, createPending]);
+
+  const submitCreate = useCallback(async () => {
+    if (createPending) {
+      return;
+    }
+
+    const rawInput = draft.trim();
+    const createDirectoryTarget = rawInput.endsWith("/");
+    if (rawInput.startsWith("/")) {
+      setCreateError("Enter a relative path");
+      return;
+    }
+    const normalizedInput = normalizeWorkspacePath(rawInput);
+
+    if (!isValidCreatePath(normalizedInput)) {
+      setCreateError("Enter a valid relative path");
+      return;
+    }
+
+    const targetPath = joinWorkspacePath(basePath, normalizedInput);
+    setCreatePending(true);
+    setCreateError(null);
+
+    try {
+      const existing = await getWorkspaceEntryInfo(targetPath);
+      if (existing.kind === "file" || existing.kind === "directory") {
+        setCreateError("Path already exists");
+        return;
+      }
+
+      if (createDirectoryTarget) {
+        await createDirectory(targetPath);
+      } else {
+        await writeFile(targetPath, "");
+      }
+
+      onWorkspaceMutated();
+      setDraft("");
+      setCreating(false);
+      navigate(buildWorkspaceHref(targetPath));
+    } catch (error) {
+      setCreateError(errorMessage(error));
+    } finally {
+      setCreatePending(false);
+    }
+  }, [basePath, createPending, draft, navigate, onWorkspaceMutated]);
+
+  const handleComposerKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLInputElement>) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        void submitCreate();
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeComposer();
+      }
+    },
+    [closeComposer, submitCreate],
+  );
+
+  const createInput = (
+    <input
+      ref={createInputRef}
+      type="text"
+      value={draft}
+      onChange={(event) => {
+        setDraft(event.target.value);
+        if (createError) {
+          setCreateError(null);
+        }
+      }}
+      onKeyDown={handleComposerKeyDown}
+      placeholder="path/to/file.md or path/to/folder/"
+      aria-label="Create path"
+      aria-invalid={createError ? "true" : "false"}
+      title={createError ?? undefined}
+      className={`h-7 min-w-24 rounded border bg-surface-raised px-2 text-sm leading-none text-txt transition-colors focus-visible:border-accent focus-visible:outline-none ${
+        createError
+          ? "border-red-500"
+          : "border-bdr"
+      }`}
+      disabled={createPending}
+      data-testid="breadcrumb-create-input"
+    />
+  );
 
   return (
-    <nav
-      aria-label="Breadcrumbs"
-      className="flex min-w-0 items-center gap-1 overflow-hidden text-sm"
-    >
-      <Link
-        to={buildWorkspaceHref("")}
-        className="shrink-0 text-txt-muted transition-colors hover:text-txt"
+    <div className="flex min-w-0 items-center gap-2 overflow-hidden">
+      <nav
+        aria-label="Breadcrumbs"
+        className="flex h-8 min-w-0 shrink items-center gap-1 overflow-hidden text-sm leading-none"
       >
-        ~
-      </Link>
-      {breadcrumbs.map((crumb) => (
-        <span
-          key={crumb.href}
-          className="flex min-w-0 shrink items-center gap-1 overflow-hidden"
+        <Link
+          to={buildWorkspaceHref("")}
+          className="inline-flex h-8 shrink-0 items-center text-txt-muted transition-colors hover:text-txt"
         >
-          <span className="shrink-0 text-txt-muted">/</span>
-          {crumb.isCurrent ? (
-            <span className="truncate font-medium text-txt">{crumb.name}</span>
-          ) : (
-            <Link
-              to={crumb.href}
-              className="truncate text-txt-muted transition-colors hover:text-txt"
+          ~
+        </Link>
+        {breadcrumbs.map((crumb) => {
+          const isCurrentInput = shouldReplaceCurrentCrumb && crumb.isCurrent;
+          return (
+            <span
+              key={crumb.href}
+              className="flex h-8 min-w-0 shrink items-center gap-1 overflow-hidden"
             >
-              {crumb.name}
-            </Link>
-          )}
-        </span>
-      ))}
-    </nav>
+              <span className="shrink-0 text-txt-muted">/</span>
+              {isCurrentInput ? (
+                createInput
+              ) : crumb.isCurrent ? (
+                <span className="inline-flex h-8 min-w-0 items-center truncate font-medium text-txt">
+                  {crumb.name}
+                </span>
+              ) : (
+                <Link
+                  to={crumb.href}
+                  className="inline-flex h-8 min-w-0 items-center truncate text-txt-muted transition-colors hover:text-txt"
+                >
+                  {crumb.name}
+                </Link>
+              )}
+            </span>
+          );
+        })}
+        {creating && !shouldReplaceCurrentCrumb && (
+          <span className="flex h-8 min-w-0 shrink items-center gap-1 overflow-hidden">
+            <span className="shrink-0 text-txt-muted">/</span>
+            {createInput}
+          </span>
+        )}
+      </nav>
+      <button
+        type="button"
+        aria-label="Create"
+        onClick={openComposer}
+        disabled={entryInfoLoading || createPending}
+        title={entryInfoError ? "Unable to determine current path type" : "New"}
+        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-transparent text-txt-muted transition-colors hover:border-bdr hover:bg-surface-raised hover:text-txt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50"
+        data-testid="breadcrumb-create-button"
+      >
+        +
+      </button>
+      {createError && (
+        <p
+          className="hidden max-w-56 truncate text-xs text-red-600 md:block"
+          data-testid="breadcrumb-create-error"
+        >
+          {createError}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -231,6 +435,7 @@ export function Shell({ children }: { children: ReactNode }) {
   );
   const [controlsContainFocus, setControlsContainFocus] = useState(false);
   const [controlsIdleCycle, setControlsIdleCycle] = useState(0);
+  const [sidebarRefreshToken, setSidebarRefreshToken] = useState(0);
 
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const mobileDrawerRef = useRef<HTMLElement>(null);
@@ -285,6 +490,10 @@ export function Shell({ children }: { children: ReactNode }) {
   const revealFullscreenControls = useCallback(() => {
     setFullscreenControlsVisible(true);
     setControlsIdleCycle((value) => value + 1);
+  }, []);
+
+  const handleWorkspaceMutated = useCallback(() => {
+    setSidebarRefreshToken((value) => value + 1);
   }, []);
 
   const handleControlsFocusCapture = useCallback(() => {
@@ -446,7 +655,7 @@ export function Shell({ children }: { children: ReactNode }) {
               </IconButton>
             </div>
             <div className="min-w-0 flex-1">
-              <Breadcrumbs />
+              <Breadcrumbs onWorkspaceMutated={handleWorkspaceMutated} />
             </div>
           </div>
         </ChromePanel>
@@ -457,7 +666,7 @@ export function Shell({ children }: { children: ReactNode }) {
         data-testid="desktop-sidebar"
       >
         <ChromePanel className="shell-sidebar-desktop-chrome h-full">
-          <SidebarNav />
+          <SidebarNav refreshToken={sidebarRefreshToken} />
         </ChromePanel>
       </aside>
 
@@ -523,7 +732,10 @@ export function Shell({ children }: { children: ReactNode }) {
               <CloseIcon />
             </IconButton>
           </div>
-          <SidebarNav onNavigate={handleMobileNavigate} />
+          <SidebarNav
+            onNavigate={handleMobileNavigate}
+            refreshToken={sidebarRefreshToken}
+          />
         </ChromePanel>
       </aside>
     </div>

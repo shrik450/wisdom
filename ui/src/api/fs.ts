@@ -5,6 +5,10 @@ function fsUrl(path: string): string {
   return buildFsApiUrl(path);
 }
 
+function fsMkdirUrl(path: string): string {
+  return `${fsUrl(path)}?mkdir`;
+}
+
 async function checkResponse(res: Response): Promise<void> {
   if (!res.ok) {
     const body = await res.text();
@@ -28,6 +32,13 @@ export async function writeFile(path: string, content: string): Promise<void> {
   const res = await fetch(fsUrl(path), {
     method: "PUT",
     body: content,
+  });
+  await checkResponse(res);
+}
+
+export async function createDirectory(path: string): Promise<void> {
+  const res = await fetch(fsMkdirUrl(path), {
+    method: "PUT",
   });
   await checkResponse(res);
 }

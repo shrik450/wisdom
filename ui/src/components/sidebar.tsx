@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useRoute } from "wouter";
 import { DirEntry } from "../api/types";
 import { useDirectoryListing } from "../hooks/use-fs";
@@ -12,13 +12,15 @@ import {
 
 interface SidebarNavProps {
   onNavigate?: () => void;
+  refreshToken?: number;
 }
 
 interface FileTreeNodeProps {
   entry: DirEntry;
   basePath: string;
-  initialAutoExpandPath: string;
+  autoExpandPath: string;
   onNavigate?: () => void;
+  refreshToken: number;
 }
 
 function sortEntries(entries: DirEntry[]): DirEntry[] {
@@ -43,8 +45,9 @@ function subtreeIdForPath(path: string): string {
 function FileTreeNode({
   entry,
   basePath,
-  initialAutoExpandPath,
+  autoExpandPath,
   onNavigate,
+  refreshToken,
 }: FileTreeNodeProps) {
   const fullPath = joinWorkspacePath(basePath, entry.name);
   const subtreeId = subtreeIdForPath(fullPath);
@@ -52,11 +55,23 @@ function FileTreeNode({
     if (!entry.isDir) {
       return false;
     }
-    if (initialAutoExpandPath === "") {
+    if (autoExpandPath === "") {
       return false;
     }
-    return isSameOrAncestorPath(fullPath, initialAutoExpandPath);
+    return isSameOrAncestorPath(fullPath, autoExpandPath);
   });
+
+  useEffect(() => {
+    if (!entry.isDir) {
+      return;
+    }
+    if (autoExpandPath === "") {
+      return;
+    }
+    if (isSameOrAncestorPath(fullPath, autoExpandPath)) {
+      setExpanded(true);
+    }
+  }, [entry.isDir, autoExpandPath, fullPath]);
 
   if (!entry.isDir) {
     return (
@@ -90,8 +105,9 @@ function FileTreeNode({
         <SubTree
           id={subtreeId}
           path={fullPath}
-          initialAutoExpandPath={initialAutoExpandPath}
+          autoExpandPath={autoExpandPath}
           onNavigate={onNavigate}
+          refreshToken={refreshToken}
         />
       )}
     </li>
@@ -101,12 +117,19 @@ function FileTreeNode({
 interface SubTreeProps {
   id: string;
   path: string;
-  initialAutoExpandPath: string;
+  autoExpandPath: string;
   onNavigate?: () => void;
+  refreshToken: number;
 }
 
-function SubTree({ id, path, initialAutoExpandPath, onNavigate }: SubTreeProps) {
-  const { data, loading, error } = useDirectoryListing(path);
+function SubTree({
+  id,
+  path,
+  autoExpandPath,
+  onNavigate,
+  refreshToken,
+}: SubTreeProps) {
+  const { data, loading, error } = useDirectoryListing(path, refreshToken);
 
   if (loading) {
     return <p className="pl-4 py-1 text-xs text-txt-muted">Loading...</p>;
@@ -122,22 +145,22 @@ function SubTree({ id, path, initialAutoExpandPath, onNavigate }: SubTreeProps) 
           key={entry.name}
           entry={entry}
           basePath={path}
-          initialAutoExpandPath={initialAutoExpandPath}
+          autoExpandPath={autoExpandPath}
           onNavigate={onNavigate}
+          refreshToken={refreshToken}
         />
       ))}
     </ul>
   );
 }
 
-export function SidebarNav({ onNavigate }: SidebarNavProps) {
+export function SidebarNav({ onNavigate, refreshToken = 0 }: SidebarNavProps) {
   const [, params] = useRoute("/ws/*");
   const routePath = normalizeWorkspacePath(
     decodeWorkspaceRoutePath(params?.["*"] ?? ""),
   );
-  const initialAutoExpandPathRef = useRef(routePath);
 
-  const { data, loading, error } = useDirectoryListing("");
+  const { data, loading, error } = useDirectoryListing("", refreshToken);
 
   return (
     <nav
@@ -156,8 +179,9 @@ export function SidebarNav({ onNavigate }: SidebarNavProps) {
               key={entry.name}
               entry={entry}
               basePath=""
-              initialAutoExpandPath={initialAutoExpandPathRef.current}
+              autoExpandPath={routePath}
               onNavigate={onNavigate}
+              refreshToken={refreshToken}
             />
           ))}
         </ul>

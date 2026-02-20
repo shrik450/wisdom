@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { listDir, readFile } from "../api/fs";
-import { DirEntry } from "../api/types";
+import {
+  getWorkspaceEntryInfo,
+  WorkspaceEntryInfo,
+} from "../workspace-entry-info";
 
 interface AsyncState<T> {
   data: T | null;
@@ -9,20 +11,20 @@ interface AsyncState<T> {
   refresh: () => void;
 }
 
-function useAsync<T>(fn: () => Promise<T>, refreshToken = 0): AsyncState<T> {
-  const [data, setData] = useState<T | null>(null);
+export function useWorkspaceEntryInfo(path: string): AsyncState<WorkspaceEntryInfo> {
+  const [data, setData] = useState<WorkspaceEntryInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [tick, setTick] = useState(0);
 
-  const refresh = useCallback(() => setTick((t) => t + 1), []);
+  const refresh = useCallback(() => setTick((value) => value + 1), []);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
 
-    fn().then(
+    getWorkspaceEntryInfo(path).then(
       (result) => {
         if (!cancelled) {
           setData(result);
@@ -40,20 +42,7 @@ function useAsync<T>(fn: () => Promise<T>, refreshToken = 0): AsyncState<T> {
     return () => {
       cancelled = true;
     };
-  }, [tick, fn, refreshToken]);
+  }, [path, tick]);
 
   return { data, loading, error, refresh };
-}
-
-export function useDirectoryListing(
-  path: string,
-  refreshToken = 0,
-): AsyncState<DirEntry[]> {
-  const readDirectory = useCallback(() => listDir(path), [path]);
-  return useAsync(readDirectory, refreshToken);
-}
-
-export function useFileContent(path: string): AsyncState<string> {
-  const readContent = useCallback(() => readFile(path), [path]);
-  return useAsync(readContent);
 }
