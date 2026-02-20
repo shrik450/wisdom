@@ -40,7 +40,9 @@ export function partitionShellActions(
   }
 
   if (input.mobile) {
-    const firstInlineAction = input.actions.find((action) => !action.overflowOnly);
+    const firstInlineAction = input.actions.find(
+      (action) => !action.overflowOnly,
+    );
     if (!firstInlineAction) {
       return {
         inlineActions: [],
@@ -57,7 +59,9 @@ export function partitionShellActions(
 
   const normalizedContainerWidth = Math.max(0, input.containerWidth);
   const gapPx =
-    input.gapPx !== undefined && Number.isFinite(input.gapPx) && input.gapPx >= 0
+    input.gapPx !== undefined &&
+    Number.isFinite(input.gapPx) &&
+    input.gapPx >= 0
       ? input.gapPx
       : DEFAULT_ACTION_GAP_PX;
   const overflowButtonWidth =
@@ -70,7 +74,9 @@ export function partitionShellActions(
   const forcedOverflowCount = input.actions.filter(
     (action) => action.overflowOnly,
   ).length;
-  const inlineCandidates = input.actions.filter((action) => !action.overflowOnly);
+  const inlineCandidates = input.actions.filter(
+    (action) => !action.overflowOnly,
+  );
   const inlineActions: ShellResolvedAction[] = [];
   let inlineWidth = 0;
 
@@ -78,7 +84,9 @@ export function partitionShellActions(
     const action = inlineCandidates[index];
     const actionWidth = widthForAction(action.id, input.buttonWidths);
     const nextInlineWidth =
-      inlineActions.length === 0 ? actionWidth : inlineWidth + gapPx + actionWidth;
+      inlineActions.length === 0
+        ? actionWidth
+        : inlineWidth + gapPx + actionWidth;
 
     const remainingInlineCandidates = inlineCandidates.length - (index + 1);
     const overflowWouldExist =
@@ -101,6 +109,8 @@ export function partitionShellActions(
   const inlineIds = new Set(inlineActions.map((action) => action.id));
   return {
     inlineActions,
-    overflowActions: input.actions.filter((action) => !inlineIds.has(action.id)),
+    overflowActions: input.actions.filter(
+      (action) => !inlineIds.has(action.id),
+    ),
   };
 }

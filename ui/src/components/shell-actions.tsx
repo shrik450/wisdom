@@ -19,12 +19,17 @@ import {
 } from "./shell-actions-model";
 
 interface ShellActionsContextValue {
-  upsertContributor: (contributorId: number, actions: readonly ShellActionSpec[]) => void;
+  upsertContributor: (
+    contributorId: number,
+    actions: readonly ShellActionSpec[],
+  ) => void;
   removeContributor: (contributorId: number) => void;
   resolvedActions: readonly ShellResolvedAction[];
 }
 
-const ShellActionsContext = createContext<ShellActionsContextValue | null>(null);
+const ShellActionsContext = createContext<ShellActionsContextValue | null>(
+  null,
+);
 
 let nextContributorId = 1;
 
@@ -96,40 +101,42 @@ export function ShellActionsProvider({ children }: { children: ReactNode }) {
   const actionHandlersRef = useRef<Map<string, () => void>>(new Map());
   const actionWrappersRef = useRef<Map<string, () => void>>(new Map());
 
-  const upsertContributor = useCallback((
-    contributorId: number,
-    actions: readonly ShellActionSpec[],
-  ) => {
-    const handlers = actionHandlersRef.current;
-    const wrappers = actionWrappersRef.current;
-    const registeredActions = toRegisteredActions(
-      contributorId,
-      actions,
-      handlers,
-      wrappers,
-    );
-
-    setRegistry((previous) => {
-      const existingContributor = previous.contributors.find((contributor) => {
-        return contributor.contributorId === contributorId;
-      });
-      if (existingContributor) {
-        removeDeletedActionHandlers(
-          contributorId,
-          existingContributor.actions,
-          registeredActions,
-          handlers,
-          wrappers,
-        );
-      }
-
-      return upsertShellActionContributor(
-        previous,
+  const upsertContributor = useCallback(
+    (contributorId: number, actions: readonly ShellActionSpec[]) => {
+      const handlers = actionHandlersRef.current;
+      const wrappers = actionWrappersRef.current;
+      const registeredActions = toRegisteredActions(
         contributorId,
-        registeredActions,
+        actions,
+        handlers,
+        wrappers,
       );
-    });
-  }, []);
+
+      setRegistry((previous) => {
+        const existingContributor = previous.contributors.find(
+          (contributor) => {
+            return contributor.contributorId === contributorId;
+          },
+        );
+        if (existingContributor) {
+          removeDeletedActionHandlers(
+            contributorId,
+            existingContributor.actions,
+            registeredActions,
+            handlers,
+            wrappers,
+          );
+        }
+
+        return upsertShellActionContributor(
+          previous,
+          contributorId,
+          registeredActions,
+        );
+      });
+    },
+    [],
+  );
 
   const removeContributor = useCallback((contributorId: number) => {
     const handlers = actionHandlersRef.current;

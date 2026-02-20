@@ -12,17 +12,20 @@ import {
   useRef,
   useState,
 } from "react";
-import { Link, useLocation, useRoute } from "wouter";
+import { Link, useLocation } from "wouter";
 import {
   buildBreadcrumbs,
   buildWorkspaceHref,
-  decodeWorkspaceRoutePath,
   joinWorkspacePath,
   normalizeWorkspacePath,
 } from "../path-utils";
 import { createDirectory, deleteEntry, writeFile } from "../api/fs";
 import { ApiError } from "../api/types";
 import { useWorkspaceEntryInfo } from "../hooks/use-workspace-entry-info";
+import {
+  useWorkspaceMutated,
+  useWorkspaceRefreshToken,
+} from "../hooks/use-workspace-mutated";
 import { getWorkspaceEntryInfo } from "../workspace-entry-info";
 import { partitionShellActions } from "./shell-action-layout";
 import {
@@ -99,21 +102,16 @@ function errorMessage(error: unknown): string {
   return "Request failed";
 }
 
-interface BreadcrumbsProps {
-  onWorkspaceMutated: () => void;
-}
-
-function Breadcrumbs({ onWorkspaceMutated }: BreadcrumbsProps) {
-  const [, params] = useRoute("/ws/*");
+function Breadcrumbs() {
+  const onWorkspaceMutated = useWorkspaceMutated();
   const [, navigate] = useLocation();
-  const encodedPath = params?.["*"] ?? "";
-  const path = normalizeWorkspacePath(decodeWorkspaceRoutePath(encodedPath));
-  const breadcrumbs = buildBreadcrumbs(path);
   const {
+    path,
     data: entryInfo,
     loading: entryInfoLoading,
     error: entryInfoError,
-  } = useWorkspaceEntryInfo(path);
+  } = useWorkspaceEntryInfo();
+  const breadcrumbs = buildBreadcrumbs(path);
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
@@ -212,14 +210,23 @@ function Breadcrumbs({ onWorkspaceMutated }: BreadcrumbsProps) {
     } finally {
       setCreatePending(false);
     }
-  }, [basePath, createPending, deletePending, draft, navigate, onWorkspaceMutated]);
+  }, [
+    basePath,
+    createPending,
+    deletePending,
+    draft,
+    navigate,
+    onWorkspaceMutated,
+  ]);
 
   const submitDelete = useCallback(async () => {
     if (!deleteEntryInfo || deletePending) {
       return;
     }
 
-    const confirmed = window.confirm(deleteConfirmationMessage(deleteEntryInfo));
+    const confirmed = window.confirm(
+      deleteConfirmationMessage(deleteEntryInfo),
+    );
     if (!confirmed) {
       return;
     }
@@ -241,12 +248,7 @@ function Breadcrumbs({ onWorkspaceMutated }: BreadcrumbsProps) {
     } finally {
       setDeletePending(false);
     }
-  }, [
-    deletePending,
-    deleteEntryInfo,
-    navigate,
-    onWorkspaceMutated,
-  ]);
+  }, [deletePending, deleteEntryInfo, navigate, onWorkspaceMutated]);
 
   const shellActions = useMemo(() => {
     if (!canDeleteCurrentEntry) {
@@ -301,9 +303,7 @@ function Breadcrumbs({ onWorkspaceMutated }: BreadcrumbsProps) {
       aria-invalid={createError ? "true" : "false"}
       title={createError ?? undefined}
       className={`h-7 min-w-24 rounded border bg-surface-raised px-2 text-sm leading-none text-txt transition-colors focus-visible:border-accent focus-visible:outline-none ${
-        createError
-          ? "border-red-500"
-          : "border-bdr"
+        createError ? "border-red-500" : "border-bdr"
       }`}
       disabled={createPending || deletePending}
       data-testid="breadcrumb-create-input"
@@ -512,7 +512,11 @@ interface ShellHeaderActionsProps {
   mobile: boolean;
 }
 
-function ShellHeaderActions({ actions, routeKey, mobile }: ShellHeaderActionsProps) {
+function ShellHeaderActions({
+  actions,
+  routeKey,
+  mobile,
+}: ShellHeaderActionsProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [containerWidth, setContainerWidth] = useState(0);
   const [buttonWidths, setButtonWidths] = useState<Record<string, number>>({});
@@ -597,7 +601,9 @@ function ShellHeaderActions({ actions, routeKey, mobile }: ShellHeaderActionsPro
       if (!action) {
         continue;
       }
-      nextButtonWidths[action.id] = Math.ceil(node.getBoundingClientRect().width);
+      nextButtonWidths[action.id] = Math.ceil(
+        node.getBoundingClientRect().width,
+      );
     }
 
     setButtonWidths(nextButtonWidths);
@@ -608,7 +614,9 @@ function ShellHeaderActions({ actions, routeKey, mobile }: ShellHeaderActionsPro
     if (!overflowMeasure) {
       return;
     }
-    setOverflowButtonWidth(Math.ceil(overflowMeasure.getBoundingClientRect().width));
+    setOverflowButtonWidth(
+      Math.ceil(overflowMeasure.getBoundingClientRect().width),
+    );
   }, [actions]);
 
   useEffect(() => {
@@ -799,7 +807,7 @@ export function Shell({ children }: { children: ReactNode }) {
   );
   const [controlsContainFocus, setControlsContainFocus] = useState(false);
   const [controlsIdleCycle, setControlsIdleCycle] = useState(0);
-  const [sidebarRefreshToken, setSidebarRefreshToken] = useState(0);
+  const sidebarRefreshToken = useWorkspaceRefreshToken();
   const [isDesktop, setIsDesktop] = useState(() => {
     return window.matchMedia(DESKTOP_MEDIA_QUERY).matches;
   });
@@ -857,10 +865,6 @@ export function Shell({ children }: { children: ReactNode }) {
   const revealFullscreenControls = useCallback(() => {
     setFullscreenControlsVisible(true);
     setControlsIdleCycle((value) => value + 1);
-  }, []);
-
-  const handleWorkspaceMutated = useCallback(() => {
-    setSidebarRefreshToken((value) => value + 1);
   }, []);
 
   const handleControlsFocusCapture = useCallback(() => {
@@ -1023,7 +1027,7 @@ export function Shell({ children }: { children: ReactNode }) {
               </IconButton>
             </div>
             <div className="min-w-0 flex-1">
-              <Breadcrumbs onWorkspaceMutated={handleWorkspaceMutated} />
+              <Breadcrumbs />
             </div>
             {shellActions.length > 0 && (
               <ShellHeaderActions

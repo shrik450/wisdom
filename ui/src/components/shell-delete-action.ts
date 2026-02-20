@@ -20,7 +20,9 @@ export function canDeleteWorkspaceEntry(
   return !PROTECTED_DELETE_PATHS.has(entryInfo.path);
 }
 
-export function deleteConfirmationMessage(entryInfo: WorkspaceEntryInfo): string {
+export function deleteConfirmationMessage(
+  entryInfo: WorkspaceEntryInfo,
+): string {
   const targetName = entryInfo.name !== "" ? entryInfo.name : entryInfo.path;
   return `Delete "${targetName}"? This cannot be undone.`;
 }

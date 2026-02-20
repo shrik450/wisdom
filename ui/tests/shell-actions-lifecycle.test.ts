@@ -88,9 +88,7 @@ function Harness({
   );
 }
 
-async function renderWithAct(
-  element: ReactNode,
-): Promise<ReactTestRenderer> {
+async function renderWithAct(element: ReactNode): Promise<ReactTestRenderer> {
   let renderer: ReactTestRenderer | null = null;
   await act(async () => {
     renderer = create(element);

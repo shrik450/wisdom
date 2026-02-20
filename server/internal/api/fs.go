@@ -106,7 +106,10 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
+		// Vendor MIME type so the frontend can distinguish directory listings from
+		// regular JSON files. Without this, a .json file whose content happens to
+		// match the DirEntry[] shape would be misclassified as a directory.
+		w.Header().Set("Content-Type", "application/vnd.wisdom.dirlist+json")
 		w.Write(data)
 		return
 	}

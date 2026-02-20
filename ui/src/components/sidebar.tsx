@@ -7,7 +7,6 @@ import {
   decodeWorkspaceRoutePath,
   isSameOrAncestorPath,
   joinWorkspacePath,
-  normalizeWorkspacePath,
 } from "../path-utils";
 
 interface SidebarNavProps {
@@ -52,7 +51,6 @@ function FileTreeNode({
   refreshToken,
 }: FileTreeNodeProps) {
   const fullPath = joinWorkspacePath(basePath, entry.name);
-  const normalizedFullPath = normalizeWorkspacePath(fullPath);
   const subtreeId = subtreeIdForPath(fullPath);
   const [expanded, setExpanded] = useState(() => {
     if (!entry.isDir) {
@@ -61,7 +59,7 @@ function FileTreeNode({
     if (autoExpandPath === "") {
       return false;
     }
-    return isSameOrAncestorPath(normalizedFullPath, autoExpandPath);
+    return isSameOrAncestorPath(fullPath, autoExpandPath);
   });
 
   useEffect(() => {
@@ -71,12 +69,12 @@ function FileTreeNode({
     if (autoExpandPath === "") {
       return;
     }
-    if (isSameOrAncestorPath(normalizedFullPath, autoExpandPath)) {
+    if (isSameOrAncestorPath(fullPath, autoExpandPath)) {
       setExpanded(true);
     }
-  }, [entry.isDir, autoExpandPath, normalizedFullPath]);
+  }, [entry.isDir, autoExpandPath, fullPath]);
 
-  const isActive = normalizedFullPath === activePath;
+  const isActive = fullPath === activePath;
 
   if (!entry.isDir) {
     return (
@@ -108,9 +106,7 @@ function FileTreeNode({
         aria-controls={expanded ? subtreeId : undefined}
         data-active={isActive ? "true" : "false"}
         className={`flex w-full items-center gap-1 rounded px-2 py-1 text-left text-sm transition-colors hover:bg-surface-raised ${
-          isActive
-            ? "bg-surface-raised font-medium text-txt"
-            : "text-txt"
+          isActive ? "bg-surface-raised font-medium text-txt" : "text-txt"
         }`}
       >
         <span className="text-xs text-txt-muted" aria-hidden="true">
@@ -177,9 +173,7 @@ function SubTree({
 
 export function SidebarNav({ onNavigate, refreshToken = 0 }: SidebarNavProps) {
   const [, params] = useRoute("/ws/*");
-  const routePath = normalizeWorkspacePath(
-    decodeWorkspaceRoutePath(params?.["*"] ?? ""),
-  );
+  const routePath = decodeWorkspaceRoutePath(params?.["*"] ?? "");
 
   const { data, loading, error } = useDirectoryListing("", refreshToken);
 

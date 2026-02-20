@@ -1,7 +1,11 @@
-import { ApiError, DirEntry } from "./api/types";
+import { ApiError } from "./api/types";
 import { buildFsApiUrl, normalizeWorkspacePath } from "./path-utils";
 
 export type WorkspaceEntryKind = "file" | "directory" | "missing" | "unknown";
+
+// The backend uses a vendor MIME type for directory listings so we can
+// classify entries by Content-Type header alone, without body-sniffing.
+const DIRLIST_CONTENT_TYPE = "application/vnd.wisdom.dirlist+json";
 
 export interface WorkspaceEntryInfo {
   kind: WorkspaceEntryKind;
@@ -9,6 +13,7 @@ export interface WorkspaceEntryInfo {
   name: string;
   parentPath: string;
   extension: string | null;
+  contentType: string | null;
 }
 
 function pathSegments(path: string): string[] {
@@ -41,9 +46,21 @@ function fileExtension(name: string): string | null {
   return name.slice(dot + 1);
 }
 
+// Strips parameters (charset, boundary, etc.) to get the bare MIME type.
+export function parseContentType(header: string | null): string | null {
+  if (!header) {
+    return null;
+  }
+  const semicolon = header.indexOf(";");
+  const raw = semicolon >= 0 ? header.slice(0, semicolon) : header;
+  const trimmed = raw.trim().toLowerCase();
+  return trimmed || null;
+}
+
 function buildEntry(
   path: string,
   kind: WorkspaceEntryKind,
+  contentType: string | null = null,
 ): WorkspaceEntryInfo {
   const normalizedPath = normalizeWorkspacePath(path);
   const name = entryName(normalizedPath);
@@ -53,24 +70,8 @@ function buildEntry(
     name,
     parentPath: parentPath(normalizedPath),
     extension: kind === "file" ? fileExtension(name) : null,
+    contentType,
   };
-}
-
-function isDirEntry(value: unknown): value is DirEntry {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-  const candidate = value as Partial<DirEntry>;
-  return (
-    typeof candidate.name === "string" &&
-    typeof candidate.size === "number" &&
-    typeof candidate.modTime === "string" &&
-    typeof candidate.isDir === "boolean"
-  );
-}
-
-function isDirectoryPayload(value: unknown): value is DirEntry[] {
-  return Array.isArray(value) && value.every(isDirEntry);
 }
 
 export async function getWorkspaceEntryInfo(
@@ -87,16 +88,10 @@ export async function getWorkspaceEntryInfo(
     throw new ApiError(res.status, body);
   }
 
-  const body = await res.text();
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(body);
-  } catch {
-    return buildEntry(normalizedPath, "file");
-  }
+  const contentType = parseContentType(res.headers.get("Content-Type"));
 
-  if (isDirectoryPayload(parsed)) {
+  if (contentType === DIRLIST_CONTENT_TYPE) {
     return buildEntry(normalizedPath, "directory");
   }
-  return buildEntry(normalizedPath, "file");
+  return buildEntry(normalizedPath, "file", contentType);
 }

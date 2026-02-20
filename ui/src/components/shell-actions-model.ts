@@ -55,10 +55,14 @@ function areActionsEqual(
     if (left.label !== right.label) {
       return false;
     }
-    if (normalizedPriority(left.priority) !== normalizedPriority(right.priority)) {
+    if (
+      normalizedPriority(left.priority) !== normalizedPriority(right.priority)
+    ) {
       return false;
     }
-    if (normalizedFlag(left.overflowOnly) !== normalizedFlag(right.overflowOnly)) {
+    if (
+      normalizedFlag(left.overflowOnly) !== normalizedFlag(right.overflowOnly)
+    ) {
       return false;
     }
     if (normalizedFlag(left.disabled) !== normalizedFlag(right.disabled)) {
@@ -142,7 +146,11 @@ export function resolveShellActions(
   const resolved: ShellResolvedAction[] = [];
 
   for (const contributor of contributors) {
-    for (let actionOrder = 0; actionOrder < contributor.actions.length; actionOrder += 1) {
+    for (
+      let actionOrder = 0;
+      actionOrder < contributor.actions.length;
+      actionOrder += 1
+    ) {
       const action = contributor.actions[actionOrder];
       const existingContributorId = seen.get(action.id);
       if (existingContributorId !== undefined) {
