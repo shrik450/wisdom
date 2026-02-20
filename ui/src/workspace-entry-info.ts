@@ -14,6 +14,8 @@ export interface WorkspaceEntryInfo {
   parentPath: string;
   extension: string | null;
   contentType: string | null;
+  size: number | null;
+  lastModified: string | null;
 }
 
 function pathSegments(path: string): string[] {
@@ -57,10 +59,18 @@ export function parseContentType(header: string | null): string | null {
   return trimmed || null;
 }
 
+function parseSize(header: string | null): number | null {
+  if (!header) return null;
+  const value = Number(header);
+  return Number.isFinite(value) && value >= 0 ? value : null;
+}
+
 function buildEntry(
   path: string,
   kind: WorkspaceEntryKind,
   contentType: string | null = null,
+  size: number | null = null,
+  lastModified: string | null = null,
 ): WorkspaceEntryInfo {
   const normalizedPath = normalizeWorkspacePath(path);
   const name = entryName(normalizedPath);
@@ -71,6 +81,8 @@ function buildEntry(
     parentPath: parentPath(normalizedPath),
     extension: kind === "file" ? fileExtension(name) : null,
     contentType,
+    size,
+    lastModified,
   };
 }
 
@@ -93,5 +105,8 @@ export async function getWorkspaceEntryInfo(
   if (contentType === DIRLIST_CONTENT_TYPE) {
     return buildEntry(normalizedPath, "directory");
   }
-  return buildEntry(normalizedPath, "file", contentType);
+
+  const size = parseSize(res.headers.get("Content-Length"));
+  const lastModified = res.headers.get("Last-Modified");
+  return buildEntry(normalizedPath, "file", contentType, size, lastModified);
 }

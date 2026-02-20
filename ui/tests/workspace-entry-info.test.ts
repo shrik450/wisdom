@@ -29,6 +29,8 @@ test("detects directory from dirlist content type", async () => {
     assert.equal(info.parentPath, "");
     assert.equal(info.extension, null);
     assert.equal(info.contentType, null);
+    assert.equal(info.size, null);
+    assert.equal(info.lastModified, null);
   } finally {
     globalThis.fetch = previousFetch;
   }
@@ -67,7 +69,11 @@ test("detects file metadata from non-directory payload", async () => {
   globalThis.fetch = (async () => {
     return new Response("# heading", {
       status: 200,
-      headers: { "Content-Type": "text/markdown" },
+      headers: {
+        "Content-Type": "text/markdown",
+        "Content-Length": "9",
+        "Last-Modified": "Wed, 19 Feb 2026 12:00:00 GMT",
+      },
     });
   }) as typeof fetch;
 
@@ -78,6 +84,8 @@ test("detects file metadata from non-directory payload", async () => {
     assert.equal(info.parentPath, "notes");
     assert.equal(info.extension, "md");
     assert.equal(info.contentType, "text/markdown");
+    assert.equal(info.size, 9);
+    assert.equal(info.lastModified, "Wed, 19 Feb 2026 12:00:00 GMT");
   } finally {
     globalThis.fetch = previousFetch;
   }
@@ -96,6 +104,8 @@ test("returns missing entry metadata for 404", async () => {
     assert.equal(info.parentPath, "notes");
     assert.equal(info.extension, null);
     assert.equal(info.contentType, null);
+    assert.equal(info.size, null);
+    assert.equal(info.lastModified, null);
   } finally {
     globalThis.fetch = previousFetch;
   }
@@ -162,6 +172,7 @@ test("contentType is null when no Content-Type header on file response", async (
     const info = await getWorkspaceEntryInfo("data/blob");
     assert.equal(info.kind, "file");
     assert.equal(info.contentType, null);
+    assert.equal(info.lastModified, null);
   } finally {
     globalThis.fetch = previousFetch;
   }

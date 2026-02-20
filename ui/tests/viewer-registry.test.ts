@@ -19,6 +19,8 @@ function entry(
     parentPath: "",
     extension: "txt",
     contentType: "text/plain",
+    size: null,
+    lastModified: null,
     ...overrides,
   };
 }
@@ -197,4 +199,36 @@ test("resolveAllViewers keeps first route when deduping same component", () => {
   assert.equal(results.length, 1);
   assert.equal(results[0].name, "Shared High");
   assert.equal(results[0].priority, 20);
+});
+
+test("resolveAllViewers[0] can differ from resolveViewer when component has multiple routes", () => {
+  const multi = stubComponent("Multi");
+  const other = stubComponent("Other");
+
+  registerViewer({
+    name: "Multi Low",
+    match: () => true,
+    priority: 1,
+    component: multi,
+  });
+  registerViewer({
+    name: "Other",
+    match: () => true,
+    priority: 5,
+    component: other,
+  });
+  registerViewer({
+    name: "Multi High",
+    match: () => true,
+    priority: 10,
+    component: multi,
+  });
+
+  const best = resolveViewer(entry());
+  assert.equal(best?.component, multi);
+  assert.equal(best?.priority, 10);
+
+  const all = resolveAllViewers(entry());
+  assert.equal(all[0].component, other);
+  assert.equal(all[0].priority, 5);
 });
