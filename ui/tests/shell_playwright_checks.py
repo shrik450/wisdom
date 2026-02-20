@@ -202,7 +202,28 @@ async def run_desktop_checks(
   await wait_for_visible(page, "[data-testid='mobile-menu-button']", False)
 
   if width == 1024:
+    await page.goto(
+      f"{base_url}/ws/ui/src/components/shell.tsx/",
+      wait_until="networkidle",
+    )
+    await wait_for_attr(
+      page,
+      "[data-testid='desktop-sidebar'] a[href='/ws/ui/src/components/shell.tsx/']",
+      "data-active",
+      "true",
+    )
+    await wait_for_attr(
+      page,
+      "[data-testid='desktop-sidebar'] a[href='/ws/ui/src/components/shell.tsx/']",
+      "aria-current",
+      "page",
+    )
     await page.goto(f"{base_url}/ws/ui/src/components/", wait_until="networkidle")
+    await wait_for_visible(
+      page,
+      "[data-testid='desktop-sidebar'] button[data-active='true']:has-text('components')",
+      True,
+    )
     await wait_for_visible(
       page,
       "[data-testid='desktop-sidebar'] a[href='/ws/ui/src/components/shell.tsx/']",

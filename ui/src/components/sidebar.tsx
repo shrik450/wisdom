@@ -19,6 +19,7 @@ interface FileTreeNodeProps {
   entry: DirEntry;
   basePath: string;
   autoExpandPath: string;
+  activePath: string;
   onNavigate?: () => void;
   refreshToken: number;
 }
@@ -46,10 +47,12 @@ function FileTreeNode({
   entry,
   basePath,
   autoExpandPath,
+  activePath,
   onNavigate,
   refreshToken,
 }: FileTreeNodeProps) {
   const fullPath = joinWorkspacePath(basePath, entry.name);
+  const normalizedFullPath = normalizeWorkspacePath(fullPath);
   const subtreeId = subtreeIdForPath(fullPath);
   const [expanded, setExpanded] = useState(() => {
     if (!entry.isDir) {
@@ -58,7 +61,7 @@ function FileTreeNode({
     if (autoExpandPath === "") {
       return false;
     }
-    return isSameOrAncestorPath(fullPath, autoExpandPath);
+    return isSameOrAncestorPath(normalizedFullPath, autoExpandPath);
   });
 
   useEffect(() => {
@@ -68,17 +71,25 @@ function FileTreeNode({
     if (autoExpandPath === "") {
       return;
     }
-    if (isSameOrAncestorPath(fullPath, autoExpandPath)) {
+    if (isSameOrAncestorPath(normalizedFullPath, autoExpandPath)) {
       setExpanded(true);
     }
-  }, [entry.isDir, autoExpandPath, fullPath]);
+  }, [entry.isDir, autoExpandPath, normalizedFullPath]);
+
+  const isActive = normalizedFullPath === activePath;
 
   if (!entry.isDir) {
     return (
       <li>
         <Link
           to={buildWorkspaceHref(fullPath)}
-          className="block rounded px-2 py-1 text-sm text-txt-muted transition-colors hover:bg-surface-raised hover:text-txt"
+          aria-current={isActive ? "page" : undefined}
+          data-active={isActive ? "true" : "false"}
+          className={`block rounded px-2 py-1 text-sm transition-colors hover:bg-surface-raised hover:text-txt ${
+            isActive
+              ? "bg-surface-raised font-medium text-txt"
+              : "text-txt-muted"
+          }`}
           onClick={onNavigate}
         >
           <span className="block truncate">{entry.name}</span>
@@ -93,8 +104,14 @@ function FileTreeNode({
         type="button"
         onClick={() => setExpanded((value) => !value)}
         aria-expanded={expanded}
+        aria-current={isActive ? "page" : undefined}
         aria-controls={expanded ? subtreeId : undefined}
-        className="flex w-full items-center gap-1 rounded px-2 py-1 text-left text-sm text-txt transition-colors hover:bg-surface-raised"
+        data-active={isActive ? "true" : "false"}
+        className={`flex w-full items-center gap-1 rounded px-2 py-1 text-left text-sm transition-colors hover:bg-surface-raised ${
+          isActive
+            ? "bg-surface-raised font-medium text-txt"
+            : "text-txt"
+        }`}
       >
         <span className="text-xs text-txt-muted" aria-hidden="true">
           {expanded ? "▼" : "▶"}
@@ -106,6 +123,7 @@ function FileTreeNode({
           id={subtreeId}
           path={fullPath}
           autoExpandPath={autoExpandPath}
+          activePath={activePath}
           onNavigate={onNavigate}
           refreshToken={refreshToken}
         />
@@ -118,6 +136,7 @@ interface SubTreeProps {
   id: string;
   path: string;
   autoExpandPath: string;
+  activePath: string;
   onNavigate?: () => void;
   refreshToken: number;
 }
@@ -126,6 +145,7 @@ function SubTree({
   id,
   path,
   autoExpandPath,
+  activePath,
   onNavigate,
   refreshToken,
 }: SubTreeProps) {
@@ -146,6 +166,7 @@ function SubTree({
           entry={entry}
           basePath={path}
           autoExpandPath={autoExpandPath}
+          activePath={activePath}
           onNavigate={onNavigate}
           refreshToken={refreshToken}
         />
@@ -180,6 +201,7 @@ export function SidebarNav({ onNavigate, refreshToken = 0 }: SidebarNavProps) {
               entry={entry}
               basePath=""
               autoExpandPath={routePath}
+              activePath={routePath}
               onNavigate={onNavigate}
               refreshToken={refreshToken}
             />
