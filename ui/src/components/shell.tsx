@@ -6,6 +6,8 @@ import {
   type RefObject,
   useCallback,
   useEffect,
+  useLayoutEffect,
+  useMemo,
   useReducer,
   useRef,
   useState,
@@ -18,10 +20,21 @@ import {
   joinWorkspacePath,
   normalizeWorkspacePath,
 } from "../path-utils";
-import { createDirectory, writeFile } from "../api/fs";
+import { createDirectory, deleteEntry, writeFile } from "../api/fs";
 import { ApiError } from "../api/types";
 import { useWorkspaceEntryInfo } from "../hooks/use-workspace-entry-info";
 import { getWorkspaceEntryInfo } from "../workspace-entry-info";
+import { partitionShellActions } from "./shell-action-layout";
+import {
+  useShellActions,
+  useShellResolvedActions,
+  type ShellResolvedAction,
+} from "./shell-actions";
+import {
+  canDeleteWorkspaceEntry,
+  deleteConfirmationMessage,
+  SHELL_DELETE_ACTION_ID,
+} from "./shell-delete-action";
 import { SidebarNav } from "./sidebar";
 import { shellReducer, type ShellState } from "./shell-state";
 
@@ -36,6 +49,9 @@ const FOCUSABLE_SELECTOR = [
   "select:not([disabled])",
   '[tabindex]:not([tabindex="-1"])',
 ].join(", ");
+const HEADER_ACTION_GAP_PX = 8;
+const HEADER_ACTION_BUTTON_CLASSES =
+  "inline-flex h-8 shrink-0 items-center rounded-md border border-bdr bg-surface px-3 text-sm leading-none text-txt transition-colors hover:border-bdr hover:bg-surface-raised focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50";
 
 function readFullscreenPref(): boolean {
   try {
@@ -102,11 +118,17 @@ function Breadcrumbs({ onWorkspaceMutated }: BreadcrumbsProps) {
   const [draft, setDraft] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
   const [createPending, setCreatePending] = useState(false);
+  const [deletePending, setDeletePending] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const createInputRef = useRef<HTMLInputElement>(null);
 
   const isFileRoute = entryInfo?.kind === "file";
   const shouldReplaceCurrentCrumb =
     creating && isFileRoute && breadcrumbs.length > 0;
+  const deleteEntryInfo = canDeleteWorkspaceEntry(entryInfo, path)
+    ? entryInfo
+    : null;
+  const canDeleteCurrentEntry = deleteEntryInfo !== null;
 
   const basePath =
     entryInfo?.kind === "file" || entryInfo?.kind === "missing"
@@ -118,6 +140,8 @@ function Breadcrumbs({ onWorkspaceMutated }: BreadcrumbsProps) {
     setDraft("");
     setCreateError(null);
     setCreatePending(false);
+    setDeletePending(false);
+    setDeleteError(null);
   }, [path]);
 
   useEffect(() => {
@@ -127,24 +151,25 @@ function Breadcrumbs({ onWorkspaceMutated }: BreadcrumbsProps) {
   }, [creating]);
 
   const closeComposer = useCallback(() => {
-    if (createPending) {
+    if (createPending || deletePending) {
       return;
     }
     setCreating(false);
     setDraft("");
     setCreateError(null);
-  }, [createPending]);
+  }, [createPending, deletePending]);
 
   const openComposer = useCallback(() => {
-    if (entryInfoLoading || createPending) {
+    if (entryInfoLoading || createPending || deletePending) {
       return;
     }
     setCreateError(null);
+    setDeleteError(null);
     setCreating(true);
-  }, [entryInfoLoading, createPending]);
+  }, [entryInfoLoading, createPending, deletePending]);
 
   const submitCreate = useCallback(async () => {
-    if (createPending) {
+    if (createPending || deletePending) {
       return;
     }
 
@@ -187,7 +212,62 @@ function Breadcrumbs({ onWorkspaceMutated }: BreadcrumbsProps) {
     } finally {
       setCreatePending(false);
     }
-  }, [basePath, createPending, draft, navigate, onWorkspaceMutated]);
+  }, [basePath, createPending, deletePending, draft, navigate, onWorkspaceMutated]);
+
+  const submitDelete = useCallback(async () => {
+    if (!deleteEntryInfo || deletePending) {
+      return;
+    }
+
+    const confirmed = window.confirm(deleteConfirmationMessage(deleteEntryInfo));
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletePending(true);
+    setDeleteError(null);
+
+    try {
+      await deleteEntry(deleteEntryInfo.path, false);
+      onWorkspaceMutated();
+      navigate(buildWorkspaceHref(deleteEntryInfo.parentPath));
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) {
+        onWorkspaceMutated();
+        navigate(buildWorkspaceHref(deleteEntryInfo.parentPath));
+        return;
+      }
+      setDeleteError(errorMessage(error));
+    } finally {
+      setDeletePending(false);
+    }
+  }, [
+    deletePending,
+    deleteEntryInfo,
+    navigate,
+    onWorkspaceMutated,
+  ]);
+
+  const shellActions = useMemo(() => {
+    if (!canDeleteCurrentEntry) {
+      return [];
+    }
+
+    return [
+      {
+        id: SHELL_DELETE_ACTION_ID,
+        label: deletePending ? "Deleting..." : "Delete",
+        onSelect: () => {
+          void submitDelete();
+        },
+        priority: -100,
+        overflowOnly: true,
+        disabled: deletePending,
+      },
+    ];
+  }, [canDeleteCurrentEntry, deletePending, submitDelete]);
+
+  useShellActions(shellActions);
 
   const handleComposerKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLInputElement>) => {
@@ -225,7 +305,7 @@ function Breadcrumbs({ onWorkspaceMutated }: BreadcrumbsProps) {
           ? "border-red-500"
           : "border-bdr"
       }`}
-      disabled={createPending}
+      disabled={createPending || deletePending}
       data-testid="breadcrumb-create-input"
     />
   );
@@ -278,7 +358,7 @@ function Breadcrumbs({ onWorkspaceMutated }: BreadcrumbsProps) {
         type="button"
         aria-label="Create"
         onClick={openComposer}
-        disabled={entryInfoLoading || createPending}
+        disabled={entryInfoLoading || createPending || deletePending}
         title={entryInfoError ? "Unable to determine current path type" : "New"}
         className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-transparent text-txt-muted transition-colors hover:border-bdr hover:bg-surface-raised hover:text-txt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50"
         data-testid="breadcrumb-create-button"
@@ -291,6 +371,14 @@ function Breadcrumbs({ onWorkspaceMutated }: BreadcrumbsProps) {
           data-testid="breadcrumb-create-error"
         >
           {createError}
+        </p>
+      )}
+      {deleteError && (
+        <p
+          className="hidden max-w-56 truncate text-xs text-red-600 md:block"
+          data-testid="breadcrumb-delete-error"
+        >
+          {deleteError}
         </p>
       )}
     </div>
@@ -378,6 +466,281 @@ function CloseIcon() {
   );
 }
 
+function ChevronDownIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  );
+}
+
+interface ShellHeaderActionButtonProps
+  extends Omit<ComponentPropsWithoutRef<"button">, "children"> {
+  children: ReactNode;
+}
+
+function ShellHeaderActionButton({
+  children,
+  className = "",
+  type = "button",
+  ...props
+}: ShellHeaderActionButtonProps) {
+  return (
+    <button
+      {...props}
+      type={type}
+      className={`${HEADER_ACTION_BUTTON_CLASSES} ${className}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+interface ShellHeaderActionsProps {
+  actions: readonly ShellResolvedAction[];
+  routeKey: string;
+  mobile: boolean;
+}
+
+function ShellHeaderActions({ actions, routeKey, mobile }: ShellHeaderActionsProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [containerWidth, setContainerWidth] = useState(0);
+  const [buttonWidths, setButtonWidths] = useState<Record<string, number>>({});
+  const [overflowButtonWidth, setOverflowButtonWidth] = useState(88);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const menuRootRef = useRef<HTMLDivElement>(null);
+  const measureRef = useRef<HTMLDivElement>(null);
+
+  const layout = useMemo(() => {
+    return partitionShellActions({
+      actions,
+      containerWidth,
+      buttonWidths,
+      overflowButtonWidth,
+      gapPx: HEADER_ACTION_GAP_PX,
+      mobile,
+    });
+  }, [actions, buttonWidths, containerWidth, mobile, overflowButtonWidth]);
+
+  const handleActionSelect = useCallback((action: ShellResolvedAction) => {
+    action.onSelect();
+    setMenuOpen(false);
+  }, []);
+
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [routeKey]);
+
+  useEffect(() => {
+    if (layout.overflowActions.length > 0) {
+      return;
+    }
+    setMenuOpen(false);
+  }, [layout.overflowActions.length]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) {
+      return;
+    }
+
+    const updateWidth = () => {
+      setContainerWidth(Math.ceil(container.getBoundingClientRect().width));
+    };
+
+    updateWidth();
+
+    if (typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const observer = new ResizeObserver(() => {
+      updateWidth();
+    });
+    observer.observe(container);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [actions.length]);
+
+  useLayoutEffect(() => {
+    const measure = measureRef.current;
+    if (!measure) {
+      return;
+    }
+
+    const nextButtonWidths: Record<string, number> = {};
+    const nodes = measure.querySelectorAll<HTMLElement>(
+      "[data-shell-action-measure-index]",
+    );
+    for (const node of nodes) {
+      const indexAttr = node.getAttribute("data-shell-action-measure-index");
+      if (indexAttr === null) {
+        continue;
+      }
+      const index = Number(indexAttr);
+      if (!Number.isInteger(index)) {
+        continue;
+      }
+      const action = actions[index];
+      if (!action) {
+        continue;
+      }
+      nextButtonWidths[action.id] = Math.ceil(node.getBoundingClientRect().width);
+    }
+
+    setButtonWidths(nextButtonWidths);
+
+    const overflowMeasure = measure.querySelector<HTMLElement>(
+      "[data-shell-action-overflow-measure]",
+    );
+    if (!overflowMeasure) {
+      return;
+    }
+    setOverflowButtonWidth(Math.ceil(overflowMeasure.getBoundingClientRect().width));
+  }, [actions]);
+
+  useEffect(() => {
+    if (!menuOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const root = menuRootRef.current;
+      const target = event.target;
+      if (!root || !(target instanceof Node)) {
+        return;
+      }
+      if (root.contains(target)) {
+        return;
+      }
+      setMenuOpen(false);
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, [menuOpen]);
+
+  useEffect(() => {
+    if (!menuOpen) {
+      return;
+    }
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+      setMenuOpen(false);
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    return () => {
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [menuOpen]);
+
+  if (actions.length === 0) {
+    return null;
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative min-w-0 flex-1"
+      data-testid="shell-header-actions"
+    >
+      <div className="flex min-w-0 items-center justify-end gap-2">
+        {layout.inlineActions.map((action) => (
+          <ShellHeaderActionButton
+            key={action.id}
+            onClick={() => handleActionSelect(action)}
+            disabled={action.disabled}
+            data-shell-action-id={action.id}
+          >
+            {action.label}
+          </ShellHeaderActionButton>
+        ))}
+        {layout.overflowActions.length > 0 && (
+          <div ref={menuRootRef} className="relative shrink-0">
+            <ShellHeaderActionButton
+              aria-haspopup="menu"
+              aria-expanded={menuOpen ? "true" : "false"}
+              onClick={() => setMenuOpen((current) => !current)}
+              data-testid="shell-actions-overflow-trigger"
+            >
+              <span>More</span>
+              <span className="ml-1">
+                <ChevronDownIcon />
+              </span>
+            </ShellHeaderActionButton>
+            {menuOpen && (
+              <div
+                role="menu"
+                className="absolute right-0 top-[calc(100%+0.25rem)] z-[80] min-w-44 rounded-md border border-bdr bg-surface p-1 shadow-lg"
+                data-testid="shell-actions-overflow-menu"
+              >
+                {layout.overflowActions.map((action) => (
+                  <button
+                    key={action.id}
+                    type="button"
+                    role="menuitem"
+                    disabled={action.disabled}
+                    onClick={() => handleActionSelect(action)}
+                    className="flex w-full items-center rounded px-2 py-1.5 text-left text-sm text-txt transition-colors hover:bg-surface-raised focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50"
+                    data-shell-action-id={action.id}
+                  >
+                    <span className="truncate">{action.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div
+        ref={measureRef}
+        aria-hidden="true"
+        className="pointer-events-none absolute -z-10 h-0 overflow-hidden opacity-0"
+      >
+        <div className="flex items-center gap-2">
+          {actions.map((action, index) => (
+            <span
+              key={action.id}
+              data-shell-action-measure-index={index}
+              className={HEADER_ACTION_BUTTON_CLASSES}
+            >
+              {action.label}
+            </span>
+          ))}
+          <span
+            data-shell-action-overflow-measure
+            className={HEADER_ACTION_BUTTON_CLASSES}
+          >
+            <span>More</span>
+            <span className="ml-1">
+              <ChevronDownIcon />
+            </span>
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ChromePanel({
   children,
   className = "",
@@ -429,6 +792,7 @@ export function Shell({ children }: { children: ReactNode }) {
     createInitialShellState,
   );
   const [location] = useLocation();
+  const shellActions = useShellResolvedActions();
 
   const [fullscreenControlsVisible, setFullscreenControlsVisible] = useState(
     () => !readFullscreenPref(),
@@ -436,6 +800,9 @@ export function Shell({ children }: { children: ReactNode }) {
   const [controlsContainFocus, setControlsContainFocus] = useState(false);
   const [controlsIdleCycle, setControlsIdleCycle] = useState(0);
   const [sidebarRefreshToken, setSidebarRefreshToken] = useState(0);
+  const [isDesktop, setIsDesktop] = useState(() => {
+    return window.matchMedia(DESKTOP_MEDIA_QUERY).matches;
+  });
 
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const mobileDrawerRef = useRef<HTMLElement>(null);
@@ -531,17 +898,18 @@ export function Shell({ children }: { children: ReactNode }) {
   useEffect(() => {
     const media = window.matchMedia(DESKTOP_MEDIA_QUERY);
 
-    const normalizeDesktop = () => {
+    const applyViewportState = () => {
+      setIsDesktop(media.matches);
       if (media.matches) {
         dispatch({ type: "VIEWPORT_DESKTOP" });
       }
     };
 
-    normalizeDesktop();
-    media.addEventListener("change", normalizeDesktop);
+    applyViewportState();
+    media.addEventListener("change", applyViewportState);
 
     return () => {
-      media.removeEventListener("change", normalizeDesktop);
+      media.removeEventListener("change", applyViewportState);
     };
   }, []);
 
@@ -657,6 +1025,13 @@ export function Shell({ children }: { children: ReactNode }) {
             <div className="min-w-0 flex-1">
               <Breadcrumbs onWorkspaceMutated={handleWorkspaceMutated} />
             </div>
+            {shellActions.length > 0 && (
+              <ShellHeaderActions
+                actions={shellActions}
+                routeKey={location}
+                mobile={!isDesktop}
+              />
+            )}
           </div>
         </ChromePanel>
       </header>
