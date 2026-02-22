@@ -1,6 +1,6 @@
 import { Route, Switch, Redirect } from "wouter";
 import { Shell } from "./components/shell";
-import { ShellActionsProvider } from "./components/shell-actions";
+import { ActionRegistryProvider } from "./actions/action-registry";
 import { WorkspaceEntryProvider } from "./hooks/use-workspace-entry-info";
 import { WorkspaceMutatedProvider } from "./hooks/use-workspace-mutated";
 import { WorkspaceView } from "./pages/workspace";
@@ -9,7 +9,7 @@ import "./viewers";
 export function App() {
   return (
     <WorkspaceMutatedProvider>
-      <ShellActionsProvider>
+      <ActionRegistryProvider>
         <WorkspaceEntryProvider>
           <Shell>
             <Switch>
@@ -20,7 +20,7 @@ export function App() {
             </Switch>
           </Shell>
         </WorkspaceEntryProvider>
-      </ShellActionsProvider>
+      </ActionRegistryProvider>
     </WorkspaceMutatedProvider>
   );
 }

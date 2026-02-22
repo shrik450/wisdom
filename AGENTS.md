@@ -36,19 +36,36 @@ If you are reviewing code, also consider:
    is something odd or poorly considered?
 4. Security: Given the constraints that are spelled out for the project, is the
    code insecure?
+5. Simplicity: Is this the simplest solution to the problem? Is the code
+   needlessly complex or long? Does it add an abstraction that wasn't required,
+   or fails to use an existing one? Was this _required_?
 
 ## Style notes
 
 ### All languages
 
 Do not add unnecessary comments. Comment sparingly and only when absolutely
-required to explain the *why* of code. Likewise, do not add doc comments for
+required to explain the _why_ of code. Likewise, do not add doc comments for
 trivial functions, classes or modules. If an element is self-documenting via
 names and types, do not add more docs for no reason.
 
 Name elements considering the full state of things. Never name something based
 on the state of something else - a class named `Frobnicatorv2` is always a
 terrible idea.
+
+#### Project commands
+
+Prefer running repo tasks via `just` from the repo root (not `go`/`npm` directly), unless you have a specific reason to bypass the wrappers.
+
+Use these recipes by default:
+
+- `just test` (server + UI tests)
+- `just check` (CI-style checks: server `vet`, formatting checks, UI lint)
+- `just fmt` / `just fmt-check`
+- `just lint`
+- `just tidy`
+- `just build` / `just run` / `just dev`
+- `just ui-install` when UI deps are needed
 
 ### Testing - All Languages
 
@@ -73,6 +90,7 @@ This project uses Tailwind. Use standard tailwind best practices: define
 components to encapsulate shared styles.
 
 Component extraction rule:
+
 1. Extract a UI component only when both are true:
    - It is semantically reusable (the "name test": there is an obvious stable name for it).
    - It is used in 2 or more places.
@@ -84,7 +102,10 @@ Component extraction rule:
 In TypeScript, avoid `any` or `object` at all costs. Type things with the best
 known type. If a types starts to get gnarly, consider if that function or
 interface should be refactored to allow types to be simpler instead. Do not
-reach for complex type definitions unless expressly allowed.
+reach for complex type definitions unless expressly allowed. An `as <type>` is
+almost always a code smell and should be avoided. If you *must* use it, explain
+why in a comment. If you notice an `as <type>` in review, flag it asnd ask for
+an explanation.
 
 When writing CSS, consider that this isn't a mass appeal, "normal" site. You
 don't have to design for the median.
@@ -97,7 +118,7 @@ Very frequently, a UI change session goes like:
 
 1. I request a change.
 2. You implement the change, but that breaks something else.
-3. I tell you about the breakage, you fix that but something *else* breaks too.
+3. I tell you about the breakage, you fix that but something _else_ breaks too.
 4. Repeat.
 
 This is awful, and you must do everything you can to prevent this from

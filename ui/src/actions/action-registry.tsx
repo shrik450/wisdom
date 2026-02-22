@@ -9,40 +9,46 @@ import {
   useState,
 } from "react";
 import {
-  createShellActionRegistryState,
-  removeShellActionContributor,
-  resolveShellActions,
-  upsertShellActionContributor,
-  type ShellActionRegistryState,
-  type ShellActionSpec,
-  type ShellResolvedAction,
-} from "./shell-actions-model";
+  createActionRegistryState,
+  removeActionContributor,
+  resolveActions,
+  upsertActionContributor,
+  type ActionRegistryState,
+  type ActionSpec,
+  type ResolvedAction,
+} from "./action-model";
 
-interface ShellActionsContextValue {
+interface ActionRegistryContextValue {
   upsertContributor: (
     contributorId: number,
-    actions: readonly ShellActionSpec[],
+    actions: readonly ActionSpec[],
   ) => void;
   removeContributor: (contributorId: number) => void;
-  resolvedActions: readonly ShellResolvedAction[];
+  resolvedActions: readonly ResolvedAction[];
 }
 
-const ShellActionsContext = createContext<ShellActionsContextValue | null>(
+const ActionRegistryContext = createContext<ActionRegistryContextValue | null>(
   null,
 );
 
 let nextContributorId = 1;
 
+// Null byte can't appear in user-provided action IDs, so it's a
+// collision-free separator between contributor and action.
 function contributorActionKey(contributorId: number, actionId: string): string {
   return `${contributorId}\u0000${actionId}`;
 }
 
+// Replace each action's onSelect with a stable wrapper that looks up the
+// real handler at call time.  This keeps the function reference identity
+// constant across re-renders so the model's areActionsEqual check can
+// detect no-op updates without the onSelect pointer changing every render.
 function toRegisteredActions(
   contributorId: number,
-  actions: readonly ShellActionSpec[],
+  actions: readonly ActionSpec[],
   handlers: Map<string, () => void>,
   wrappers: Map<string, () => void>,
-): ShellActionSpec[] {
+): ActionSpec[] {
   return actions.map((action) => {
     const key = contributorActionKey(contributorId, action.id);
     handlers.set(key, action.onSelect);
@@ -65,8 +71,8 @@ function toRegisteredActions(
 
 function removeDeletedActionHandlers(
   contributorId: number,
-  previousActions: readonly ShellActionSpec[],
-  nextActions: readonly ShellActionSpec[],
+  previousActions: readonly ActionSpec[],
+  nextActions: readonly ActionSpec[],
   handlers: Map<string, () => void>,
   wrappers: Map<string, () => void>,
 ) {
@@ -83,7 +89,7 @@ function removeDeletedActionHandlers(
 
 function removeAllActionHandlers(
   contributorId: number,
-  actions: readonly ShellActionSpec[],
+  actions: readonly ActionSpec[],
   handlers: Map<string, () => void>,
   wrappers: Map<string, () => void>,
 ) {
@@ -94,15 +100,15 @@ function removeAllActionHandlers(
   }
 }
 
-export function ShellActionsProvider({ children }: { children: ReactNode }) {
-  const [registry, setRegistry] = useState<ShellActionRegistryState>(() => {
-    return createShellActionRegistryState();
+export function ActionRegistryProvider({ children }: { children: ReactNode }) {
+  const [registry, setRegistry] = useState<ActionRegistryState>(() => {
+    return createActionRegistryState();
   });
   const actionHandlersRef = useRef<Map<string, () => void>>(new Map());
   const actionWrappersRef = useRef<Map<string, () => void>>(new Map());
 
   const upsertContributor = useCallback(
-    (contributorId: number, actions: readonly ShellActionSpec[]) => {
+    (contributorId: number, actions: readonly ActionSpec[]) => {
       const handlers = actionHandlersRef.current;
       const wrappers = actionWrappersRef.current;
       const registeredActions = toRegisteredActions(
@@ -128,7 +134,7 @@ export function ShellActionsProvider({ children }: { children: ReactNode }) {
           );
         }
 
-        return upsertShellActionContributor(
+        return upsertActionContributor(
           previous,
           contributorId,
           registeredActions,
@@ -157,15 +163,15 @@ export function ShellActionsProvider({ children }: { children: ReactNode }) {
         wrappers,
       );
 
-      return removeShellActionContributor(previous, contributorId);
+      return removeActionContributor(previous, contributorId);
     });
   }, []);
 
   const resolvedActions = useMemo(() => {
-    return resolveShellActions(registry.contributors);
+    return resolveActions(registry.contributors);
   }, [registry.contributors]);
 
-  const value = useMemo<ShellActionsContextValue>(() => {
+  const value = useMemo<ActionRegistryContextValue>(() => {
     return {
       upsertContributor,
       removeContributor,
@@ -174,22 +180,22 @@ export function ShellActionsProvider({ children }: { children: ReactNode }) {
   }, [removeContributor, resolvedActions, upsertContributor]);
 
   return (
-    <ShellActionsContext.Provider value={value}>
+    <ActionRegistryContext.Provider value={value}>
       {children}
-    </ShellActionsContext.Provider>
+    </ActionRegistryContext.Provider>
   );
 }
 
-function useShellActionsContext(): ShellActionsContextValue {
-  const context = useContext(ShellActionsContext);
+function useActionRegistryContext(): ActionRegistryContextValue {
+  const context = useContext(ActionRegistryContext);
   if (!context) {
-    throw new Error("Shell actions must be used inside ShellActionsProvider.");
+    throw new Error("Actions must be used inside ActionRegistryProvider.");
   }
   return context;
 }
 
-export function useShellActions(actions: readonly ShellActionSpec[]) {
-  const { upsertContributor, removeContributor } = useShellActionsContext();
+export function useActions(actions: readonly ActionSpec[]) {
+  const { upsertContributor, removeContributor } = useActionRegistryContext();
   const contributorIdRef = useRef<number>(0);
 
   if (contributorIdRef.current === 0) {
@@ -209,9 +215,9 @@ export function useShellActions(actions: readonly ShellActionSpec[]) {
   }, [removeContributor]);
 }
 
-export function useShellResolvedActions(): readonly ShellResolvedAction[] {
-  const { resolvedActions } = useShellActionsContext();
+export function useResolvedActions(): readonly ResolvedAction[] {
+  const { resolvedActions } = useActionRegistryContext();
   return resolvedActions;
 }
 
-export type { ShellActionSpec, ShellResolvedAction };
+export type { ActionSpec, ResolvedAction };

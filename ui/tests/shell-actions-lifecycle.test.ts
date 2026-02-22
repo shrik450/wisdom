@@ -3,10 +3,10 @@ import test from "node:test";
 import { createElement, type ReactNode, useEffect } from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import {
-  ShellActionsProvider,
-  useShellActions,
-  useShellResolvedActions,
-} from "../src/components/shell-actions.tsx";
+  ActionRegistryProvider,
+  useActions,
+  useResolvedActions,
+} from "../src/actions/action-registry.tsx";
 
 const globalWithReactAct = globalThis as {
   IS_REACT_ACT_ENVIRONMENT?: boolean;
@@ -27,7 +27,7 @@ function Contributor({
   label: string;
   stamp: number;
 }) {
-  useShellActions([
+  useActions([
     {
       id,
       label,
@@ -44,7 +44,7 @@ function SnapshotObserver({
 }: {
   onSnapshot: (actions: readonly SnapshotAction[]) => void;
 }) {
-  const resolvedActions = useShellResolvedActions();
+  const resolvedActions = useResolvedActions();
 
   useEffect(() => {
     onSnapshot(
@@ -70,7 +70,7 @@ function Harness({
   onSnapshot: (actions: readonly SnapshotAction[]) => void;
 }) {
   return createElement(
-    ShellActionsProvider,
+    ActionRegistryProvider,
     null,
     includeFirst
       ? createElement(Contributor, {
@@ -99,7 +99,7 @@ async function renderWithAct(element: ReactNode): Promise<ReactTestRenderer> {
   return renderer;
 }
 
-test("useShellActions updates do not churn registration order", async () => {
+test("useActions updates do not churn registration order", async () => {
   const snapshots: SnapshotAction[][] = [];
 
   const renderer = await renderWithAct(
@@ -147,7 +147,7 @@ test("useShellActions updates do not churn registration order", async () => {
   });
 });
 
-test("useShellActions unregisters on unmount", async () => {
+test("useActions unregisters on unmount", async () => {
   let latest: readonly SnapshotAction[] = [];
 
   const renderer = await renderWithAct(

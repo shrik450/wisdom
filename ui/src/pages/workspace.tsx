@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { useShellActions } from "../components/shell-actions";
+import { useActions } from "../actions/action-registry";
 import { useWorkspaceEntryInfo } from "../hooks/use-workspace-entry-info";
 import { resolveAllViewers, resolveViewer } from "../viewers/registry";
-import type { ShellActionSpec } from "../components/shell-actions";
+import type { ActionSpec } from "../actions/action-registry";
 
 export function WorkspaceView() {
   const { path, data: entry, loading, error } = useWorkspaceEntryInfo();
@@ -27,7 +27,7 @@ export function WorkspaceView() {
       ? allViewers.find((v) => v.name === viewerOverride)
       : null) ?? defaultViewer;
 
-  const viewerActions: ShellActionSpec[] = useMemo(() => {
+  const viewerActions: ActionSpec[] = useMemo(() => {
     if (allViewers.length < 2) return [];
     return allViewers
       .filter((route) => route.component !== activeViewer?.component)
@@ -36,11 +36,11 @@ export function WorkspaceView() {
         label: `View as ${route.name}`,
         onSelect: () => setViewerOverride(route.name),
         priority: -50,
-        overflowOnly: true,
+        headerDisplay: "overflow",
       }));
   }, [allViewers, activeViewer]);
 
-  useShellActions(viewerActions);
+  useActions(viewerActions);
 
   if (loading) {
     return <p className="p-6 text-sm text-txt-muted">Loading...</p>;

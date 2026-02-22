@@ -198,8 +198,14 @@ async def run_desktop_checks(
     "data-fullscreen",
     "false",
   )
+  await wait_for_attr(
+    page,
+    "[data-testid='shell-root']",
+    "data-nav-open",
+    "true",
+  )
   await wait_for_visible(page, "[data-testid='desktop-sidebar']", True)
-  await wait_for_visible(page, "[data-testid='mobile-menu-button']", False)
+  await wait_for_visible(page, "[data-testid='mobile-menu-button']", True)
 
   if width == 1024:
     await page.goto(
@@ -322,6 +328,36 @@ async def run_desktop_checks(
     "data-fullscreen",
     "false",
   )
+  await wait_for_attr(
+    page,
+    "[data-testid='shell-root']",
+    "data-nav-open",
+    "true",
+  )
+
+  await page.locator("[data-testid='palette-trigger']").click()
+  await page.locator("[data-testid='command-palette-input']").fill(">toggle sidebar")
+  await wait_for_visible(page, "[data-testid='command-palette-results']", True)
+  await page.keyboard.press("Enter")
+  await wait_for_attr(
+    page,
+    "[data-testid='shell-root']",
+    "data-nav-open",
+    "false",
+  )
+  await wait_for_visible(page, "[data-testid='desktop-sidebar'] nav", False)
+
+  await page.locator("[data-testid='palette-trigger']").click()
+  await page.locator("[data-testid='command-palette-input']").fill(">toggle sidebar")
+  await wait_for_visible(page, "[data-testid='command-palette-results']", True)
+  await page.keyboard.press("Enter")
+  await wait_for_attr(
+    page,
+    "[data-testid='shell-root']",
+    "data-nav-open",
+    "true",
+  )
+  await wait_for_visible(page, "[data-testid='desktop-sidebar'] nav", True)
 
   await context.close()
 
@@ -345,7 +381,7 @@ async def run_mobile_checks(
   await wait_for_attr(
     page,
     "[data-testid='shell-root']",
-    "data-mobile-sidebar-open",
+    "data-nav-open",
     "false",
   )
   await wait_for_visible(page, "[data-testid='mobile-menu-button']", True)
@@ -358,14 +394,14 @@ async def run_mobile_checks(
   await wait_for_attr(
     page,
     "[data-testid='shell-root']",
-    "data-mobile-sidebar-open",
+    "data-nav-open",
     "true",
   )
   await page.keyboard.press("Escape")
   await wait_for_attr(
     page,
     "[data-testid='shell-root']",
-    "data-mobile-sidebar-open",
+    "data-nav-open",
     "false",
   )
 
@@ -373,7 +409,7 @@ async def run_mobile_checks(
   await wait_for_attr(
     page,
     "[data-testid='shell-root']",
-    "data-mobile-sidebar-open",
+    "data-nav-open",
     "true",
   )
   if width == 390:
@@ -385,7 +421,7 @@ async def run_mobile_checks(
   await wait_for_attr(
     page,
     "[data-testid='shell-root']",
-    "data-mobile-sidebar-open",
+    "data-nav-open",
     "false",
   )
 
@@ -393,7 +429,7 @@ async def run_mobile_checks(
   await wait_for_attr(
     page,
     "[data-testid='shell-root']",
-    "data-mobile-sidebar-open",
+    "data-nav-open",
     "true",
   )
   await wait_for_visible(page, "[data-testid='mobile-drawer']", True)
@@ -407,7 +443,7 @@ async def run_mobile_checks(
   await wait_for_attr(
     page,
     "[data-testid='shell-root']",
-    "data-mobile-sidebar-open",
+    "data-nav-open",
     "false",
   )
 

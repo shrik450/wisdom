@@ -1,24 +1,24 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { partitionShellActions } from "../src/components/shell-action-layout.ts";
+import { partitionHeaderActions } from "../src/actions/action-header-layout.ts";
 import {
-  createShellActionRegistryState,
-  removeShellActionContributor,
-  resolveShellActions,
-  type ShellActionContributor,
-  upsertShellActionContributor,
-} from "../src/components/shell-actions-model.ts";
+  createActionRegistryState,
+  removeActionContributor,
+  resolveActions,
+  type ActionContributor,
+  upsertActionContributor,
+} from "../src/actions/action-model.ts";
 
 const noop = () => {};
 
 function resolveFromContributors(
-  contributors: readonly ShellActionContributor[],
+  contributors: readonly ActionContributor[],
 ) {
-  return resolveShellActions(contributors);
+  return resolveActions(contributors);
 }
 
-test("resolveShellActions throws on duplicate action IDs", () => {
-  const contributors: ShellActionContributor[] = [
+test("resolveActions throws on duplicate action IDs", () => {
+  const contributors: ActionContributor[] = [
     {
       contributorId: 1,
       registrationOrder: 0,
@@ -45,27 +45,27 @@ test("resolveShellActions throws on duplicate action IDs", () => {
 
   assert.throws(
     () => resolveFromContributors(contributors),
-    /Duplicate shell action id "open"/,
+    /Duplicate action id "open"/,
   );
 });
 
-test("upsertShellActionContributor keeps registration order on updates", () => {
-  const initial = createShellActionRegistryState();
-  const first = upsertShellActionContributor(initial, 11, [
+test("upsertActionContributor keeps registration order on updates", () => {
+  const initial = createActionRegistryState();
+  const first = upsertActionContributor(initial, 11, [
     {
       id: "first",
       label: "First",
       onSelect: noop,
     },
   ]);
-  const second = upsertShellActionContributor(first, 22, [
+  const second = upsertActionContributor(first, 22, [
     {
       id: "second",
       label: "Second",
       onSelect: noop,
     },
   ]);
-  const updated = upsertShellActionContributor(second, 11, [
+  const updated = upsertActionContributor(second, 11, [
     {
       id: "first",
       label: "First Updated",
@@ -84,9 +84,9 @@ test("upsertShellActionContributor keeps registration order on updates", () => {
   );
 });
 
-test("upsertShellActionContributor returns same state for equivalent actions", () => {
-  const initial = createShellActionRegistryState();
-  const withContributor = upsertShellActionContributor(initial, 11, [
+test("upsertActionContributor returns same state for equivalent actions", () => {
+  const initial = createActionRegistryState();
+  const withContributor = upsertActionContributor(initial, 11, [
     {
       id: "first",
       label: "First",
@@ -95,7 +95,7 @@ test("upsertShellActionContributor returns same state for equivalent actions", (
     },
   ]);
 
-  const equivalent = upsertShellActionContributor(withContributor, 11, [
+  const equivalent = upsertActionContributor(withContributor, 11, [
     {
       id: "first",
       label: "First",
@@ -107,9 +107,9 @@ test("upsertShellActionContributor returns same state for equivalent actions", (
   assert.equal(equivalent, withContributor);
 });
 
-test("removeShellActionContributor removes contributor and is idempotent", () => {
-  const initial = createShellActionRegistryState();
-  const withContributor = upsertShellActionContributor(initial, 11, [
+test("removeActionContributor removes contributor and is idempotent", () => {
+  const initial = createActionRegistryState();
+  const withContributor = upsertActionContributor(initial, 11, [
     {
       id: "first",
       label: "First",
@@ -117,14 +117,14 @@ test("removeShellActionContributor removes contributor and is idempotent", () =>
     },
   ]);
 
-  const removed = removeShellActionContributor(withContributor, 11);
+  const removed = removeActionContributor(withContributor, 11);
   assert.deepEqual(removed.contributors, []);
 
-  const removedAgain = removeShellActionContributor(removed, 11);
+  const removedAgain = removeActionContributor(removed, 11);
   assert.equal(removedAgain, removed);
 });
 
-test("resolveShellActions orders by priority then registration order", () => {
+test("resolveActions orders by priority then registration order", () => {
   const resolved = resolveFromContributors([
     {
       contributorId: 10,
@@ -164,7 +164,7 @@ test("resolveShellActions orders by priority then registration order", () => {
   );
 });
 
-test("partitionShellActions keeps overflow-only actions out of inline slot", () => {
+test("partitionHeaderActions keeps overflow-only actions out of inline slot", () => {
   const actions = resolveFromContributors([
     {
       contributorId: 1,
@@ -175,25 +175,27 @@ test("partitionShellActions keeps overflow-only actions out of inline slot", () 
           label: "Must Overflow",
           onSelect: noop,
           priority: 10,
-          overflowOnly: true,
+          headerDisplay: "overflow",
         },
         {
           id: "inline-a",
           label: "Inline A",
           onSelect: noop,
           priority: 5,
+          headerDisplay: "inline",
         },
         {
           id: "inline-b",
           label: "Inline B",
           onSelect: noop,
           priority: 4,
+          headerDisplay: "inline",
         },
       ],
     },
   ]);
 
-  const layout = partitionShellActions({
+  const layout = partitionHeaderActions({
     actions,
     containerWidth: 1000,
     buttonWidths: {},
@@ -212,7 +214,7 @@ test("partitionShellActions keeps overflow-only actions out of inline slot", () 
   );
 });
 
-test("partitionShellActions shows one inline action on mobile", () => {
+test("partitionHeaderActions shows one inline action on mobile", () => {
   const actions = resolveFromContributors([
     {
       contributorId: 1,
@@ -223,18 +225,20 @@ test("partitionShellActions shows one inline action on mobile", () => {
           label: "Top Action",
           onSelect: noop,
           priority: 10,
+          headerDisplay: "inline",
         },
         {
           id: "later-action",
           label: "Later Action",
           onSelect: noop,
           priority: 8,
+          headerDisplay: "inline",
         },
       ],
     },
   ]);
 
-  const layout = partitionShellActions({
+  const layout = partitionHeaderActions({
     actions,
     containerWidth: 320,
     buttonWidths: {},
@@ -253,20 +257,38 @@ test("partitionShellActions shows one inline action on mobile", () => {
   );
 });
 
-test("partitionShellActions overflows remaining actions when width is limited", () => {
+test("partitionHeaderActions overflows remaining actions when width is limited", () => {
   const actions = resolveFromContributors([
     {
       contributorId: 1,
       registrationOrder: 0,
       actions: [
-        { id: "a", label: "A", onSelect: noop, priority: 5 },
-        { id: "b", label: "B", onSelect: noop, priority: 4 },
-        { id: "c", label: "C", onSelect: noop, priority: 3 },
+        {
+          id: "a",
+          label: "A",
+          onSelect: noop,
+          priority: 5,
+          headerDisplay: "inline",
+        },
+        {
+          id: "b",
+          label: "B",
+          onSelect: noop,
+          priority: 4,
+          headerDisplay: "inline",
+        },
+        {
+          id: "c",
+          label: "C",
+          onSelect: noop,
+          priority: 3,
+          headerDisplay: "inline",
+        },
       ],
     },
   ]);
 
-  const layout = partitionShellActions({
+  const layout = partitionHeaderActions({
     actions,
     containerWidth: 220,
     buttonWidths: {

@@ -1,24 +1,26 @@
-export interface ShellActionSpec {
+export type ActionHeaderDisplay = "inline" | "overflow" | "palette-only";
+
+export interface ActionSpec {
   id: string;
   label: string;
   onSelect: () => void;
   priority?: number;
-  overflowOnly?: boolean;
+  headerDisplay?: ActionHeaderDisplay;
   disabled?: boolean;
 }
 
-export interface ShellActionContributor {
+export interface ActionContributor {
   contributorId: number;
   registrationOrder: number;
-  actions: readonly ShellActionSpec[];
+  actions: readonly ActionSpec[];
 }
 
-export interface ShellActionRegistryState {
-  contributors: readonly ShellActionContributor[];
+export interface ActionRegistryState {
+  contributors: readonly ActionContributor[];
   nextRegistrationOrder: number;
 }
 
-export interface ShellResolvedAction extends ShellActionSpec {
+export interface ResolvedAction extends ActionSpec {
   priority: number;
   registrationOrder: number;
   actionOrder: number;
@@ -34,13 +36,9 @@ function normalizedPriority(priority: number | undefined): number {
   return priority;
 }
 
-function normalizedFlag(flag: boolean | undefined): boolean {
-  return flag === true;
-}
-
 function areActionsEqual(
-  first: readonly ShellActionSpec[],
-  second: readonly ShellActionSpec[],
+  first: readonly ActionSpec[],
+  second: readonly ActionSpec[],
 ): boolean {
   if (first.length !== second.length) {
     return false;
@@ -60,12 +58,10 @@ function areActionsEqual(
     ) {
       return false;
     }
-    if (
-      normalizedFlag(left.overflowOnly) !== normalizedFlag(right.overflowOnly)
-    ) {
+    if (left.headerDisplay !== right.headerDisplay) {
       return false;
     }
-    if (normalizedFlag(left.disabled) !== normalizedFlag(right.disabled)) {
+    if (left.disabled !== right.disabled) {
       return false;
     }
     if (left.onSelect !== right.onSelect) {
@@ -76,18 +72,18 @@ function areActionsEqual(
   return true;
 }
 
-export function createShellActionRegistryState(): ShellActionRegistryState {
+export function createActionRegistryState(): ActionRegistryState {
   return {
     contributors: [],
     nextRegistrationOrder: 0,
   };
 }
 
-export function upsertShellActionContributor(
-  state: ShellActionRegistryState,
+export function upsertActionContributor(
+  state: ActionRegistryState,
   contributorId: number,
-  actions: readonly ShellActionSpec[],
-): ShellActionRegistryState {
+  actions: readonly ActionSpec[],
+): ActionRegistryState {
   const existingIndex = state.contributors.findIndex((contributor) => {
     return contributor.contributorId === contributorId;
   });
@@ -122,10 +118,10 @@ export function upsertShellActionContributor(
   };
 }
 
-export function removeShellActionContributor(
-  state: ShellActionRegistryState,
+export function removeActionContributor(
+  state: ActionRegistryState,
   contributorId: number,
-): ShellActionRegistryState {
+): ActionRegistryState {
   const nextContributors = state.contributors.filter((contributor) => {
     return contributor.contributorId !== contributorId;
   });
@@ -139,11 +135,11 @@ export function removeShellActionContributor(
   };
 }
 
-export function resolveShellActions(
-  contributors: readonly ShellActionContributor[],
-): ShellResolvedAction[] {
+export function resolveActions(
+  contributors: readonly ActionContributor[],
+): ResolvedAction[] {
   const seen = new Map<string, number>();
-  const resolved: ShellResolvedAction[] = [];
+  const resolved: ResolvedAction[] = [];
 
   for (const contributor of contributors) {
     for (
@@ -155,7 +151,7 @@ export function resolveShellActions(
       const existingContributorId = seen.get(action.id);
       if (existingContributorId !== undefined) {
         throw new Error(
-          `Duplicate shell action id "${action.id}" registered by contributors ${existingContributorId} and ${contributor.contributorId}.`,
+          `Duplicate action id "${action.id}" registered by contributors ${existingContributorId} and ${contributor.contributorId}.`,
         );
       }
       seen.set(action.id, contributor.contributorId);

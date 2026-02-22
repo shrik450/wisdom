@@ -27,17 +27,19 @@ import {
   useWorkspaceRefreshToken,
 } from "../hooks/use-workspace-mutated";
 import { getWorkspaceEntryInfo } from "../workspace-entry-info";
-import { partitionShellActions } from "./shell-action-layout";
+import { partitionHeaderActions } from "../actions/action-header-layout";
 import {
-  useShellActions,
-  useShellResolvedActions,
-  type ShellResolvedAction,
-} from "./shell-actions";
+  useActions,
+  useResolvedActions,
+  type ActionSpec,
+  type ResolvedAction,
+} from "../actions/action-registry";
 import {
   canDeleteWorkspaceEntry,
   deleteConfirmationMessage,
   SHELL_DELETE_ACTION_ID,
 } from "./shell-delete-action";
+import { CommandPalette } from "./command-palette";
 import { SidebarNav } from "./sidebar";
 import { shellReducer, type ShellState } from "./shell-state";
 
@@ -65,9 +67,11 @@ function readFullscreenPref(): boolean {
 }
 
 function createInitialShellState(): ShellState {
+  const isDesktopViewport = window.matchMedia(DESKTOP_MEDIA_QUERY).matches;
   return {
     fullscreen: readFullscreenPref(),
-    sidebarOpen: false,
+    navOpen: isDesktopViewport,
+    paletteOpen: false,
   };
 }
 
@@ -250,26 +254,40 @@ function Breadcrumbs() {
     }
   }, [deletePending, deleteEntryInfo, navigate, onWorkspaceMutated]);
 
-  const shellActions = useMemo(() => {
-    if (!canDeleteCurrentEntry) {
-      return [];
-    }
-
-    return [
+  const breadcrumbActions = useMemo<ActionSpec[]>(() => {
+    const actions: ActionSpec[] = [
       {
+        id: "app.create",
+        label: "Create",
+        onSelect: openComposer,
+        disabled: entryInfoLoading || createPending || deletePending,
+      },
+    ];
+
+    if (canDeleteCurrentEntry) {
+      actions.push({
         id: SHELL_DELETE_ACTION_ID,
         label: deletePending ? "Deleting..." : "Delete",
         onSelect: () => {
           void submitDelete();
         },
+        headerDisplay: "overflow",
         priority: -100,
-        overflowOnly: true,
         disabled: deletePending,
-      },
-    ];
-  }, [canDeleteCurrentEntry, deletePending, submitDelete]);
+      });
+    }
 
-  useShellActions(shellActions);
+    return actions;
+  }, [
+    canDeleteCurrentEntry,
+    createPending,
+    deletePending,
+    entryInfoLoading,
+    openComposer,
+    submitDelete,
+  ]);
+
+  useActions(breadcrumbActions);
 
   const handleComposerKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLInputElement>) => {
@@ -484,6 +502,25 @@ function ChevronDownIcon() {
   );
 }
 
+function SearchIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="11" cy="11" r="8" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </svg>
+  );
+}
+
 interface ShellHeaderActionButtonProps
   extends Omit<ComponentPropsWithoutRef<"button">, "children"> {
   children: ReactNode;
@@ -507,7 +544,7 @@ function ShellHeaderActionButton({
 }
 
 interface ShellHeaderActionsProps {
-  actions: readonly ShellResolvedAction[];
+  actions: readonly ResolvedAction[];
   routeKey: string;
   mobile: boolean;
 }
@@ -526,7 +563,7 @@ function ShellHeaderActions({
   const measureRef = useRef<HTMLDivElement>(null);
 
   const layout = useMemo(() => {
-    return partitionShellActions({
+    return partitionHeaderActions({
       actions,
       containerWidth,
       buttonWidths,
@@ -536,7 +573,7 @@ function ShellHeaderActions({
     });
   }, [actions, buttonWidths, containerWidth, mobile, overflowButtonWidth]);
 
-  const handleActionSelect = useCallback((action: ShellResolvedAction) => {
+  const handleActionSelect = useCallback((action: ResolvedAction) => {
     action.onSelect();
     setMenuOpen(false);
   }, []);
@@ -800,7 +837,14 @@ export function Shell({ children }: { children: ReactNode }) {
     createInitialShellState,
   );
   const [location] = useLocation();
-  const shellActions = useShellResolvedActions();
+  const allActions = useResolvedActions();
+  const headerActions = useMemo(() => {
+    return allActions.filter(
+      (action) =>
+        action.headerDisplay === "inline" ||
+        action.headerDisplay === "overflow",
+    );
+  }, [allActions]);
 
   const [fullscreenControlsVisible, setFullscreenControlsVisible] = useState(
     () => !readFullscreenPref(),
@@ -813,10 +857,27 @@ export function Shell({ children }: { children: ReactNode }) {
   });
 
   const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const paletteTriggerRef = useRef<HTMLButtonElement>(null);
   const mobileDrawerRef = useRef<HTMLElement>(null);
 
   const toggleFullscreen = useCallback(() => {
-    dispatch({ type: "TOGGLE_FULLSCREEN" });
+    dispatch({
+      type: "TOGGLE_FULLSCREEN",
+      isDesktop: window.matchMedia(DESKTOP_MEDIA_QUERY).matches,
+    });
+  }, []);
+
+  const toggleSidebar = useCallback(() => {
+    dispatch({ type: "TOGGLE_SIDEBAR" });
+  }, []);
+
+  const openPalette = useCallback(() => {
+    const isDesktopViewport = window.matchMedia(DESKTOP_MEDIA_QUERY).matches;
+    dispatch({ type: "OPEN_PALETTE", isDesktop: isDesktopViewport });
+  }, []);
+
+  const closePalette = useCallback(() => {
+    dispatch({ type: "CLOSE_PALETTE" });
   }, []);
 
   const closeSidebar = useCallback(() => {
@@ -826,6 +887,24 @@ export function Shell({ children }: { children: ReactNode }) {
   const handleMobileNavigate = useCallback(() => {
     dispatch({ type: "CLOSE_SIDEBAR" });
   }, []);
+
+  const shellViewActions = useMemo(
+    () => [
+      {
+        id: "app.toggle-fullscreen",
+        label: state.fullscreen ? "Exit Fullscreen" : "Enter Fullscreen",
+        onSelect: toggleFullscreen,
+      },
+      {
+        id: "app.toggle-sidebar",
+        label: "Toggle Sidebar",
+        onSelect: toggleSidebar,
+      },
+    ],
+    [state.fullscreen, toggleFullscreen, toggleSidebar],
+  );
+
+  useActions(shellViewActions);
 
   const handleMobileDrawerKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLElement>) => {
@@ -896,7 +975,8 @@ export function Shell({ children }: { children: ReactNode }) {
   }, [state.fullscreen]);
 
   useEffect(() => {
-    dispatch({ type: "ROUTE_CHANGED" });
+    const isDesktopViewport = window.matchMedia(DESKTOP_MEDIA_QUERY).matches;
+    dispatch({ type: "ROUTE_CHANGED", isDesktop: isDesktopViewport });
   }, [location]);
 
   useEffect(() => {
@@ -904,9 +984,6 @@ export function Shell({ children }: { children: ReactNode }) {
 
     const applyViewportState = () => {
       setIsDesktop(media.matches);
-      if (media.matches) {
-        dispatch({ type: "VIEWPORT_DESKTOP" });
-      }
     };
 
     applyViewportState();
@@ -922,11 +999,14 @@ export function Shell({ children }: { children: ReactNode }) {
       if (event.key !== "Escape") {
         return;
       }
-      if (state.sidebarOpen) {
+      if (state.navOpen) {
         dispatch({ type: "CLOSE_SIDEBAR" });
       }
       if (state.fullscreen) {
-        dispatch({ type: "TOGGLE_FULLSCREEN" });
+        dispatch({
+          type: "TOGGLE_FULLSCREEN",
+          isDesktop: window.matchMedia(DESKTOP_MEDIA_QUERY).matches,
+        });
       }
     };
 
@@ -934,10 +1014,12 @@ export function Shell({ children }: { children: ReactNode }) {
     return () => {
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [state.fullscreen, state.sidebarOpen]);
+  }, [state.fullscreen, state.navOpen]);
 
   useEffect(() => {
-    if (!state.sidebarOpen) {
+    // On desktop the sidebar is an in-flow grid element, not an overlay
+    // drawer, so body scroll locking only applies to the mobile drawer.
+    if (!state.navOpen || isDesktop) {
       return;
     }
 
@@ -959,7 +1041,7 @@ export function Shell({ children }: { children: ReactNode }) {
       document.body.style.overflow = previousOverflow;
       menuButton?.focus();
     };
-  }, [state.sidebarOpen]);
+  }, [state.navOpen, isDesktop]);
 
   useEffect(() => {
     if (!state.fullscreen) {
@@ -998,7 +1080,7 @@ export function Shell({ children }: { children: ReactNode }) {
     <div
       data-testid="shell-root"
       data-fullscreen={state.fullscreen ? "true" : "false"}
-      data-mobile-sidebar-open={state.sidebarOpen ? "true" : "false"}
+      data-nav-open={state.navOpen ? "true" : "false"}
       className="shell-root bg-bg"
     >
       <header className="shell-header">
@@ -1015,23 +1097,30 @@ export function Shell({ children }: { children: ReactNode }) {
                 {state.fullscreen ? <ShrinkIcon /> : <ExpandIcon />}
               </IconButton>
               <IconButton
+                label="Search"
+                onClick={openPalette}
+                buttonRef={paletteTriggerRef}
+                data-testid="palette-trigger"
+              >
+                <SearchIcon />
+              </IconButton>
+              <IconButton
                 label={
-                  state.sidebarOpen ? "Close navigation" : "Open navigation"
+                  state.navOpen ? "Close navigation" : "Open navigation"
                 }
-                onClick={() => dispatch({ type: "TOGGLE_SIDEBAR" })}
+                onClick={toggleSidebar}
                 buttonRef={menuButtonRef}
-                className="md:hidden"
                 data-testid="mobile-menu-button"
               >
-                {state.sidebarOpen ? <CloseIcon /> : <MenuIcon />}
+                {state.navOpen ? <CloseIcon /> : <MenuIcon />}
               </IconButton>
             </div>
             <div className="min-w-0 flex-1">
               <Breadcrumbs />
             </div>
-            {shellActions.length > 0 && (
+            {headerActions.length > 0 && (
               <ShellHeaderActions
-                actions={shellActions}
+                actions={headerActions}
                 routeKey={location}
                 mobile={!isDesktop}
               />
@@ -1043,6 +1132,7 @@ export function Shell({ children }: { children: ReactNode }) {
       <aside
         className="shell-sidebar-desktop hidden md:block"
         data-testid="desktop-sidebar"
+        aria-hidden={!state.navOpen}
       >
         <ChromePanel className="shell-sidebar-desktop-chrome h-full">
           <SidebarNav refreshToken={sidebarRefreshToken} />
@@ -1050,6 +1140,14 @@ export function Shell({ children }: { children: ReactNode }) {
       </aside>
 
       <main className="shell-main">{children}</main>
+
+      {state.paletteOpen && (
+        <CommandPalette
+          actions={allActions}
+          onClose={closePalette}
+          triggerRef={paletteTriggerRef}
+        />
+      )}
 
       {state.fullscreen && (
         <>
@@ -1085,14 +1183,14 @@ export function Shell({ children }: { children: ReactNode }) {
       )}
 
       <div
-        aria-hidden={!state.sidebarOpen}
+        aria-hidden={!state.navOpen}
         className="shell-backdrop md:hidden"
         data-testid="mobile-backdrop"
         onClick={closeSidebar}
       />
       <aside
         ref={mobileDrawerRef}
-        aria-hidden={!state.sidebarOpen}
+        aria-hidden={!state.navOpen}
         aria-label="Workspace navigation"
         aria-modal="true"
         className="shell-sidebar-mobile md:hidden"
