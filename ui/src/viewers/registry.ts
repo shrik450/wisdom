@@ -19,8 +19,8 @@ export interface ViewerRoute {
   component: ComponentType<ViewerProps>;
 }
 
-// Module-level registry populated by side-effecting imports (see viewers/index.ts).
-// This runs before React mounts, so no context/provider is needed.
+// Module-level registry populated at app startup (see viewers/index.ts). This
+// runs before React mounts, so no context/provider is needed.
 const routes: ViewerRoute[] = [];
 
 export function registerViewer(route: ViewerRoute): void {

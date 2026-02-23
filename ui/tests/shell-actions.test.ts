@@ -11,9 +11,7 @@ import {
 
 const noop = () => {};
 
-function resolveFromContributors(
-  contributors: readonly ActionContributor[],
-) {
+function resolveFromContributors(contributors: readonly ActionContributor[]) {
   return resolveActions(contributors);
 }
 

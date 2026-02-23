@@ -110,6 +110,30 @@ an explanation.
 When writing CSS, consider that this isn't a mass appeal, "normal" site. You
 don't have to design for the median.
 
+## Framework Reference
+
+When working on the UI or backend, be aware of these existing framework
+features. Read the linked files before building on or modifying them.
+
+### Backend
+
+- **Workspace abstraction:** `internal/workspace/workspace.go` — sandboxed filesystem access, path validation, atomic writes via `WriteStream`.
+- **Filesystem API:** `internal/api/fs.go` — RESTful CRUD over workspace paths (GET/PUT/DELETE/PATCH). Protected paths (`"."`, `"ui"`) require `force: true`.
+- **Fuzzy search:** `internal/api/fuzzymatch.go` + `search.go` — subsequence matching with scoring, exposed at `/api/search/paths`.
+- **Middleware:** `internal/middleware/` — request logging and workspace context injection, applied in `cmd/wisdom/main.go`.
+- **UI builder:** `internal/ui/` — esbuild watch/build integration, SPA-aware file serving with `index.html` fallback.
+
+### Frontend
+
+- **Actions framework:** `ui/src/actions/` — priority-based action registry. Register with `useActions()`, consume with `useResolvedActions()`. Higher priority number = shown first.
+- **Viewer framework:** `ui/src/viewers/registry.ts` — predicate + priority viewer resolution. Register via `registerViewer()` and add the import to `viewers/index.ts`. Higher priority wins; `stat-viewer` is the fallback at priority -1000.
+- **Command palette:** `ui/src/components/command-palette.tsx` — file search (default) and command mode (`>` prefix).
+- **Shell / layout:** `ui/src/components/shell.tsx` + `shell-state.ts` + `theme.css` — CSS Grid layout, fullscreen mode, responsive sidebar drawer. State managed by reducer.
+- **Filesystem hooks:** `ui/src/hooks/use-fs.ts` — `useDirectoryListing`, `useFileContent`, built on a generic `useAsync` hook.
+- **Entry info:** `ui/src/workspace-entry-info.ts` + `ui/src/hooks/use-workspace-entry-info.tsx` — HEAD request to infer entry kind from Content-Type header. Directories use MIME type `application/vnd.wisdom.dirlist+json`.
+- **Mutation notification:** `ui/src/hooks/use-workspace-mutated.tsx` — writers call `useWorkspaceMutated()`, readers subscribe via `useWorkspaceRefreshToken()`.
+- **Path utilities:** `ui/src/path-utils.ts` — normalize, encode/decode, build hrefs (always trailing slash), build breadcrumbs.
+
 ## Working Notes
 
 ### UI

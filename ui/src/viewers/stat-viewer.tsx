@@ -1,4 +1,4 @@
-import { registerViewer, type ViewerProps } from "./registry";
+import { type ViewerProps, type ViewerRoute } from "./registry";
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -66,9 +66,9 @@ function StatViewer({ entry }: ViewerProps) {
 // Catch-all fallback. Priority is deeply negative so any viewer that actually
 // understands the content wins. Handles missing paths, unknown binary formats,
 // and anything else that falls through.
-registerViewer({
+export const statViewerRoute: ViewerRoute = {
   name: "File Info",
   match: () => true,
   priority: -1000,
   component: StatViewer,
-});
+};

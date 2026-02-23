@@ -1105,9 +1105,7 @@ export function Shell({ children }: { children: ReactNode }) {
                 <SearchIcon />
               </IconButton>
               <IconButton
-                label={
-                  state.navOpen ? "Close navigation" : "Open navigation"
-                }
+                label={state.navOpen ? "Close navigation" : "Open navigation"}
                 onClick={toggleSidebar}
                 buttonRef={menuButtonRef}
                 data-testid="mobile-menu-button"

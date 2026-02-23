@@ -1,5 +1,5 @@
 import { useFileContent } from "../hooks/use-fs";
-import { registerViewer, type ViewerProps } from "./registry";
+import { type ViewerProps, type ViewerRoute } from "./registry";
 
 const TEXT_MIME_PREFIXES = ["text/"];
 
@@ -59,7 +59,7 @@ function PlainTextViewer({ path }: ViewerProps) {
   );
 }
 
-registerViewer({
+export const plainTextViewerRoute: ViewerRoute = {
   name: "Plain Text",
   match: (entry) =>
     entry.kind === "file" &&
@@ -67,4 +67,4 @@ registerViewer({
       isLikelyTextFallback(entry.contentType, entry.extension)),
   priority: 0,
   component: PlainTextViewer,
-});
+};

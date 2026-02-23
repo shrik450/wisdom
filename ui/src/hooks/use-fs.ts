@@ -1,15 +1,26 @@
 import { useCallback, useEffect, useState } from "react";
 import { listDir, readFile } from "../api/fs";
-import { DirEntry } from "../api/types";
+import { type DirEntry } from "../api/types";
 
-interface AsyncState<T> {
+export interface AsyncState<T> {
   data: T | null;
   loading: boolean;
   error: Error | null;
   refresh: () => void;
 }
 
-function useAsync<T>(fn: () => Promise<T>, refreshToken = 0): AsyncState<T> {
+function isAbortError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.name === "AbortError" ||
+      error.message === "The operation was aborted.")
+  );
+}
+
+export function useAsync<T>(
+  fn: (signal: AbortSignal) => Promise<T>,
+  refreshToken = 0,
+): AsyncState<T> {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -18,27 +29,26 @@ function useAsync<T>(fn: () => Promise<T>, refreshToken = 0): AsyncState<T> {
   const refresh = useCallback(() => setTick((t) => t + 1), []);
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
     setLoading(true);
     setError(null);
 
-    fn().then(
+    fn(controller.signal).then(
       (result) => {
-        if (!cancelled) {
-          setData(result);
-          setLoading(false);
-        }
+        setData(result);
+        setLoading(false);
       },
       (err) => {
-        if (!cancelled) {
-          setError(err instanceof Error ? err : new Error(String(err)));
-          setLoading(false);
+        if (isAbortError(err)) {
+          return;
         }
+        setError(err instanceof Error ? err : new Error(String(err)));
+        setLoading(false);
       },
     );
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [tick, fn, refreshToken]);
 
@@ -49,11 +59,17 @@ export function useDirectoryListing(
   path: string,
   refreshToken = 0,
 ): AsyncState<DirEntry[]> {
-  const readDirectory = useCallback(() => listDir(path), [path]);
+  const readDirectory = useCallback(
+    (signal: AbortSignal) => listDir(path, signal),
+    [path],
+  );
   return useAsync(readDirectory, refreshToken);
 }
 
 export function useFileContent(path: string): AsyncState<string> {
-  const readContent = useCallback(() => readFile(path), [path]);
+  const readContent = useCallback(
+    (signal: AbortSignal) => readFile(path, signal),
+    [path],
+  );
   return useAsync(readContent);
 }

@@ -35,7 +35,8 @@ function fileResultsToPaletteItems(
 ): PaletteItem[] {
   return results.map((result) => {
     const lastSlash = result.path.lastIndexOf("/");
-    const filename = lastSlash >= 0 ? result.path.slice(lastSlash + 1) : result.path;
+    const filename =
+      lastSlash >= 0 ? result.path.slice(lastSlash + 1) : result.path;
     const directory = lastSlash >= 0 ? result.path.slice(0, lastSlash) : "";
 
     return {
@@ -141,8 +142,9 @@ export function CommandPalette({
 
   // Return focus to the button that opened the palette on unmount.
   useEffect(() => {
+    const trigger = triggerRef.current;
     return () => {
-      triggerRef.current?.focus();
+      trigger?.focus();
     };
   }, [triggerRef]);
 
@@ -179,7 +181,9 @@ export function CommandPalette({
         case "ArrowUp":
           event.preventDefault();
           setSelectedIndex(
-            (prev) => (prev - 1 + Math.max(items.length, 1)) % Math.max(items.length, 1),
+            (prev) =>
+              (prev - 1 + Math.max(items.length, 1)) %
+              Math.max(items.length, 1),
           );
           break;
         case "Enter":
@@ -241,7 +245,9 @@ export function CommandPalette({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={
-            isCommandMode ? "Type a command..." : "Search files... (type > for commands)"
+            isCommandMode
+              ? "Type a command..."
+              : "Search files... (type > for commands)"
           }
           className={`w-full border border-bdr bg-surface px-4 py-3 text-sm text-txt shadow-xl transition-colors placeholder:text-txt-muted focus-visible:border-accent focus-visible:outline-none ${inputRounding}`}
           aria-label="Command palette"
@@ -260,7 +266,9 @@ export function CommandPalette({
             )}
 
             {noResults && (
-              <p className="px-3 py-2 text-sm text-txt-muted">No results found</p>
+              <p className="px-3 py-2 text-sm text-txt-muted">
+                No results found
+              </p>
             )}
 
             {items.map((item, index) => (
@@ -279,7 +287,9 @@ export function CommandPalette({
                 }`}
               >
                 {item.directory && (
-                  <span className="min-w-0 shrink truncate text-txt-muted">{item.directory}</span>
+                  <span className="min-w-0 shrink truncate text-txt-muted">
+                    {item.directory}
+                  </span>
                 )}
                 <span className="shrink-0 font-medium">{item.label}</span>
               </button>

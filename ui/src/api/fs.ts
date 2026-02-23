@@ -16,14 +16,20 @@ async function checkResponse(res: Response): Promise<void> {
   }
 }
 
-export async function listDir(path: string): Promise<DirEntry[]> {
-  const res = await fetch(fsUrl(path));
+export async function listDir(
+  path: string,
+  signal?: AbortSignal,
+): Promise<DirEntry[]> {
+  const res = await fetch(fsUrl(path), { signal });
   await checkResponse(res);
   return res.json();
 }
 
-export async function readFile(path: string): Promise<string> {
-  const res = await fetch(fsUrl(path));
+export async function readFile(
+  path: string,
+  signal?: AbortSignal,
+): Promise<string> {
+  const res = await fetch(fsUrl(path), { signal });
   await checkResponse(res);
   return res.text();
 }

@@ -3,7 +3,7 @@ import { useDirectoryListing } from "../hooks/use-fs";
 import { useWorkspaceRefreshToken } from "../hooks/use-workspace-mutated";
 import { buildWorkspaceHref, joinWorkspacePath } from "../path-utils";
 import { type DirEntry } from "../api/types";
-import { registerViewer, type ViewerProps } from "./registry";
+import { type ViewerProps, type ViewerRoute } from "./registry";
 
 function sortEntries(entries: DirEntry[]): DirEntry[] {
   return [...entries].sort((a, b) => {
@@ -99,9 +99,9 @@ function DirectoryViewer({ path }: ViewerProps) {
   );
 }
 
-registerViewer({
+export const directoryViewerRoute: ViewerRoute = {
   name: "Directory",
   match: (entry) => entry.kind === "directory",
   priority: 0,
   component: DirectoryViewer,
-});
+};

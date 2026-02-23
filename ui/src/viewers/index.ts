@@ -1,6 +1,9 @@
-// Side-effect imports: each module calls registerViewer() at the top level,
-// populating the viewer registry. To add a new viewer, create a file in this
-// directory and add an import here.
-import "./directory-viewer";
-import "./plain-text-viewer";
-import "./stat-viewer";
+import { registerViewer } from "./registry";
+import { directoryViewerRoute } from "./directory-viewer";
+import { plainTextViewerRoute } from "./plain-text-viewer";
+import { statViewerRoute } from "./stat-viewer";
+
+// Register built-in viewer routes in a single, explicit place.
+registerViewer(directoryViewerRoute);
+registerViewer(plainTextViewerRoute);
+registerViewer(statViewerRoute);
