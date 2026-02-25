@@ -1,3 +1,5 @@
+import { useCallback, useMemo } from "react";
+import { useActions } from "../actions/action-registry";
 import { useFileContent } from "../hooks/use-fs";
 import { type ViewerProps, type ViewerRoute } from "./registry";
 
@@ -43,6 +45,26 @@ function isLikelyTextFallback(
 
 function PlainTextViewer({ path }: ViewerProps) {
   const { data, loading, error } = useFileContent(path);
+
+  const copyContent = useCallback(() => {
+    if (data) {
+      void navigator.clipboard.writeText(data);
+    }
+  }, [data]);
+
+  useActions(
+    useMemo(
+      () => [
+        {
+          id: "text.copy",
+          label: "Copy File Content",
+          onSelect: copyContent,
+          headerDisplay: "palette-only" as const,
+        },
+      ],
+      [copyContent],
+    ),
+  );
 
   if (loading) {
     return <p className="p-6 text-sm text-txt-muted">Loading...</p>;

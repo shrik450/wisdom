@@ -1,4 +1,6 @@
-import { Link } from "wouter";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useLocation } from "wouter";
+import { useActions } from "../actions/action-registry";
 import { useDirectoryListing } from "../hooks/use-fs";
 import { useWorkspaceRefreshToken } from "../hooks/use-workspace-mutated";
 import { buildWorkspaceHref, joinWorkspacePath } from "../path-utils";
@@ -36,9 +38,98 @@ function formatDate(iso: string): string {
   });
 }
 
-function DirectoryViewer({ path }: ViewerProps) {
+function DirectoryViewer({ path, entry }: ViewerProps) {
   const refreshToken = useWorkspaceRefreshToken();
   const { data, loading, error } = useDirectoryListing(path, refreshToken);
+  const [, navigate] = useLocation();
+  const [selected, setSelected] = useState(0);
+  const rowRefs = useRef<Map<number, HTMLTableRowElement>>(new Map());
+
+  const entries = useMemo(() => sortEntries(data ?? []), [data]);
+
+  useEffect(() => {
+    setSelected(0);
+  }, [path]);
+
+  useEffect(() => {
+    const row = rowRefs.current.get(selected);
+    row?.scrollIntoView({ block: "nearest" });
+  }, [selected]);
+
+  const clampIndex = useCallback(
+    (index: number) => Math.max(0, Math.min(index, entries.length - 1)),
+    [entries.length],
+  );
+
+  const moveDown = useCallback(() => {
+    setSelected((i) => clampIndex(i + 1));
+  }, [clampIndex]);
+
+  const moveUp = useCallback(() => {
+    setSelected((i) => clampIndex(i - 1));
+  }, [clampIndex]);
+
+  const jumpFirst = useCallback(() => {
+    setSelected(0);
+  }, []);
+
+  const jumpLast = useCallback(() => {
+    setSelected(clampIndex(Infinity));
+  }, [clampIndex]);
+
+  const openSelected = useCallback(() => {
+    const target = entries[selected];
+    if (!target) return;
+    navigate(buildWorkspaceHref(joinWorkspacePath(path, target.name)));
+  }, [entries, selected, navigate, path]);
+
+  const goParent = useCallback(() => {
+    navigate(buildWorkspaceHref(entry.parentPath));
+  }, [navigate, entry.parentPath]);
+
+  useActions(
+    useMemo(
+      () => [
+        {
+          id: "dir.move-down",
+          label: "Next Entry",
+          onSelect: moveDown,
+          headerDisplay: "palette-only" as const,
+        },
+        {
+          id: "dir.move-up",
+          label: "Previous Entry",
+          onSelect: moveUp,
+          headerDisplay: "palette-only" as const,
+        },
+        {
+          id: "dir.open",
+          label: "Open Entry",
+          onSelect: openSelected,
+          headerDisplay: "palette-only" as const,
+        },
+        {
+          id: "dir.parent",
+          label: "Go to Parent",
+          onSelect: goParent,
+          headerDisplay: "palette-only" as const,
+        },
+        {
+          id: "dir.first",
+          label: "Jump to First",
+          onSelect: jumpFirst,
+          headerDisplay: "palette-only" as const,
+        },
+        {
+          id: "dir.last",
+          label: "Jump to Last",
+          onSelect: jumpLast,
+          headerDisplay: "palette-only" as const,
+        },
+      ],
+      [moveDown, moveUp, openSelected, goParent, jumpFirst, jumpLast],
+    ),
+  );
 
   if (loading) {
     return <p className="p-6 text-sm text-txt-muted">Loading...</p>;
@@ -51,8 +142,6 @@ function DirectoryViewer({ path }: ViewerProps) {
       </p>
     );
   }
-
-  const entries = sortEntries(data ?? []);
 
   if (entries.length === 0) {
     return <p className="p-6 text-sm text-txt-muted">Empty directory.</p>;
@@ -69,26 +158,38 @@ function DirectoryViewer({ path }: ViewerProps) {
           </tr>
         </thead>
         <tbody>
-          {entries.map((entry) => {
+          {entries.map((dirEntry, index) => {
             const href = buildWorkspaceHref(
-              joinWorkspacePath(path, entry.name),
+              joinWorkspacePath(path, dirEntry.name),
             );
+            const isSelected = index === selected;
             return (
-              <tr key={entry.name} className="border-b border-bdr/50">
+              <tr
+                key={dirEntry.name}
+                ref={(el) => {
+                  if (el) {
+                    rowRefs.current.set(index, el);
+                  } else {
+                    rowRefs.current.delete(index);
+                  }
+                }}
+                className={`border-b border-bdr/50 ${isSelected ? "bg-surface-raised" : ""}`}
+                onClick={() => setSelected(index)}
+              >
                 <td className="py-2 pr-4">
                   <Link
                     to={href}
                     className="text-txt transition-colors hover:text-accent"
                   >
-                    {entry.name}
-                    {entry.isDir ? "/" : ""}
+                    {dirEntry.name}
+                    {dirEntry.isDir ? "/" : ""}
                   </Link>
                 </td>
                 <td className="py-2 pr-4 text-right text-txt-muted tabular-nums">
-                  {entry.isDir ? "\u2014" : formatSize(entry.size)}
+                  {dirEntry.isDir ? "\u2014" : formatSize(dirEntry.size)}
                 </td>
                 <td className="py-2 text-txt-muted">
-                  {formatDate(entry.modTime)}
+                  {formatDate(dirEntry.modTime)}
                 </td>
               </tr>
             );
