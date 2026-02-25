@@ -18,6 +18,7 @@
   --shell-z-sidebar: 30;
   --shell-z-overlay: 70;
   --shell-z-palette: 90;
+  --shell-z-mode-indicator: 50;
   --shell-reveal-strip-h: 0.75rem;
 }
 
@@ -191,5 +192,11 @@
   .shell-backdrop,
   .shell-sidebar-mobile {
     display: none;
+  }
+}
+
+@media (pointer: coarse) {
+  [data-testid="mode-indicator"] {
+    display: none !important;
   }
 }

@@ -1,5 +1,4 @@
 import {
-  type KeyboardEvent as ReactKeyboardEvent,
   type RefObject,
   useCallback,
   useEffect,
@@ -11,6 +10,11 @@ import { useLocation } from "wouter";
 import { searchPaths, type PathSearchResult } from "../api/search";
 import { buildWorkspaceHref } from "../path-utils";
 import { type ResolvedAction } from "../actions/action-model";
+import { useActions } from "../actions/action-registry";
+import {
+  type KeyBindingDef,
+  useKeyboardNavContext,
+} from "../keyboard/keyboard-nav";
 
 const DEBOUNCE_MS = 150;
 const SEARCH_LIMIT = 20;
@@ -171,38 +175,54 @@ export function CommandPalette({
     [onClose],
   );
 
-  const handleKeyDown = useCallback(
-    (event: ReactKeyboardEvent) => {
-      switch (event.key) {
-        case "ArrowDown":
-          event.preventDefault();
-          setSelectedIndex((prev) => (prev + 1) % Math.max(items.length, 1));
-          break;
-        case "ArrowUp":
-          event.preventDefault();
+  const { pushMode, popMode } = useKeyboardNavContext();
+
+  useEffect(() => {
+    pushMode("palette");
+    return () => popMode();
+  }, [pushMode, popMode]);
+
+  const paletteActions = useMemo(
+    () => [
+      {
+        id: "palette.next",
+        label: "Next Result",
+        onSelect: () =>
+          setSelectedIndex((prev) => (prev + 1) % Math.max(items.length, 1)),
+        headerDisplay: "palette-only" as const,
+      },
+      {
+        id: "palette.prev",
+        label: "Previous Result",
+        onSelect: () =>
           setSelectedIndex(
             (prev) =>
               (prev - 1 + Math.max(items.length, 1)) %
               Math.max(items.length, 1),
-          );
-          break;
-        case "Enter":
-          event.preventDefault();
+          ),
+        headerDisplay: "palette-only" as const,
+      },
+      {
+        id: "palette.select",
+        label: "Select Result",
+        onSelect: () => {
           if (items[selectedIndex]) {
             selectItem(items[selectedIndex]);
           }
-          break;
-        case "Escape":
-          event.preventDefault();
-          // Stop the shell's global keydown handler from also firing
-          // (it uses Escape to close sidebar / exit fullscreen).
-          event.stopPropagation();
-          onClose();
-          break;
-      }
-    },
+        },
+        headerDisplay: "palette-only" as const,
+      },
+      {
+        id: "palette.close",
+        label: "Close Palette",
+        onSelect: onClose,
+        headerDisplay: "palette-only" as const,
+      },
+    ],
     [items, selectedIndex, selectItem, onClose],
   );
+
+  useActions(paletteActions);
 
   // Scroll selected item into view.
   useEffect(() => {
@@ -234,7 +254,6 @@ export function CommandPalette({
       className="fixed inset-0"
       style={{ zIndex: "var(--shell-z-palette)" }}
       onClick={backdropClick}
-      onKeyDown={handleKeyDown}
       role="dialog"
       aria-modal="true"
     >
@@ -300,3 +319,10 @@ export function CommandPalette({
     </div>
   );
 }
+
+export const defaultKeybinds: KeyBindingDef[] = [
+  { mode: "palette", keys: "ArrowDown", action: "palette.next" },
+  { mode: "palette", keys: "ArrowUp", action: "palette.prev" },
+  { mode: "palette", keys: "Enter", action: "palette.select" },
+  { mode: "palette", keys: "Escape", action: "palette.close" },
+];

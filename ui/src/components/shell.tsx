@@ -42,6 +42,12 @@ import {
 import { CommandPalette } from "./command-palette";
 import { SidebarNav } from "./sidebar";
 import { shellReducer, type ShellState } from "./shell-state";
+import {
+  KeyboardNavContext,
+  ModeIndicator,
+  useKeyboardNav,
+} from "../keyboard/keyboard-nav";
+import { keybinds } from "../keybinds";
 
 const DESKTOP_MEDIA_QUERY = "(min-width: 768px)";
 const FULLSCREEN_KEY = "wisdom:fullscreen";
@@ -838,6 +844,7 @@ export function Shell({ children }: { children: ReactNode }) {
   );
   const [location] = useLocation();
   const allActions = useResolvedActions();
+  const { contextValue: keyboardNav } = useKeyboardNav(keybinds, allActions);
   const headerActions = useMemo(() => {
     return allActions.filter(
       (action) =>
@@ -900,8 +907,33 @@ export function Shell({ children }: { children: ReactNode }) {
         label: "Toggle Sidebar",
         onSelect: toggleSidebar,
       },
+      {
+        id: "app.open-palette",
+        label: "Open Palette",
+        onSelect: openPalette,
+        headerDisplay: "palette-only" as const,
+      },
+      {
+        id: "app.blur",
+        label: "Blur",
+        // document.activeElement is Element | null; blur() is on HTMLElement
+        onSelect: () => (document.activeElement as HTMLElement | null)?.blur(),
+        headerDisplay: "palette-only" as const,
+      },
+      {
+        id: "app.enter-normal",
+        label: "Enter Normal Mode",
+        onSelect: keyboardNav.popMode,
+        headerDisplay: "palette-only" as const,
+      },
     ],
-    [state.fullscreen, toggleFullscreen, toggleSidebar],
+    [
+      state.fullscreen,
+      toggleFullscreen,
+      toggleSidebar,
+      openPalette,
+      keyboardNav.popMode,
+    ],
   );
 
   useActions(shellViewActions);
@@ -995,28 +1027,6 @@ export function Shell({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") {
-        return;
-      }
-      if (state.navOpen) {
-        dispatch({ type: "CLOSE_SIDEBAR" });
-      }
-      if (state.fullscreen) {
-        dispatch({
-          type: "TOGGLE_FULLSCREEN",
-          isDesktop: window.matchMedia(DESKTOP_MEDIA_QUERY).matches,
-        });
-      }
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [state.fullscreen, state.navOpen]);
-
-  useEffect(() => {
     // On desktop the sidebar is an in-flow grid element, not an overlay
     // drawer, so body scroll locking only applies to the mobile drawer.
     if (!state.navOpen || isDesktop) {
@@ -1077,142 +1087,145 @@ export function Shell({ children }: { children: ReactNode }) {
   ]);
 
   return (
-    <div
-      data-testid="shell-root"
-      data-fullscreen={state.fullscreen ? "true" : "false"}
-      data-nav-open={state.navOpen ? "true" : "false"}
-      className="shell-root bg-bg"
-    >
-      <header className="shell-header">
-        <ChromePanel className="shell-header-chrome h-full">
-          <div className="flex h-full min-w-0 items-center gap-2 px-2">
-            <div className="flex shrink-0 items-center gap-1">
-              <IconButton
-                label={
-                  state.fullscreen ? "Exit fullscreen" : "Enter fullscreen"
-                }
-                onClick={toggleFullscreen}
-                data-testid="fullscreen-toggle-header"
-              >
-                {state.fullscreen ? <ShrinkIcon /> : <ExpandIcon />}
-              </IconButton>
-              <IconButton
-                label="Search"
-                onClick={openPalette}
-                buttonRef={paletteTriggerRef}
-                data-testid="palette-trigger"
-              >
-                <SearchIcon />
-              </IconButton>
-              <IconButton
-                label={state.navOpen ? "Close navigation" : "Open navigation"}
-                onClick={toggleSidebar}
-                buttonRef={menuButtonRef}
-                data-testid="mobile-menu-button"
-              >
-                {state.navOpen ? <CloseIcon /> : <MenuIcon />}
-              </IconButton>
-            </div>
-            <div className="min-w-0 flex-1">
-              <Breadcrumbs />
-            </div>
-            {headerActions.length > 0 && (
-              <ShellHeaderActions
-                actions={headerActions}
-                routeKey={location}
-                mobile={!isDesktop}
-              />
-            )}
-          </div>
-        </ChromePanel>
-      </header>
-
-      <aside
-        className="shell-sidebar-desktop hidden md:block"
-        data-testid="desktop-sidebar"
-        aria-hidden={!state.navOpen}
-      >
-        <ChromePanel className="shell-sidebar-desktop-chrome h-full">
-          <SidebarNav refreshToken={sidebarRefreshToken} />
-        </ChromePanel>
-      </aside>
-
-      <main className="shell-main">{children}</main>
-
-      {state.paletteOpen && (
-        <CommandPalette
-          actions={allActions}
-          onClose={closePalette}
-          triggerRef={paletteTriggerRef}
-        />
-      )}
-
-      {state.fullscreen && (
-        <>
-          <button
-            type="button"
-            aria-label="Reveal fullscreen controls"
-            className="shell-reveal-strip"
-            data-testid="fullscreen-reveal-strip"
-            onMouseEnter={revealFullscreenControls}
-            onFocus={revealFullscreenControls}
-            onClick={revealFullscreenControls}
-          />
-          <div
-            data-testid="fullscreen-controls"
-            data-visible={fullscreenControlsVisible ? "true" : "false"}
-            className={`shell-fullscreen-controls ${fullscreenControlsVisible ? "" : "shell-fullscreen-controls-hidden"}`}
-            onFocusCapture={handleControlsFocusCapture}
-            onBlurCapture={handleControlsBlurCapture}
-          >
-            <ChromePanel className="p-1">
-              <IconButton
-                label="Exit fullscreen"
-                onClick={toggleFullscreen}
-                onMouseEnter={revealFullscreenControls}
-                onClickCapture={revealFullscreenControls}
-                data-testid="fullscreen-toggle-overlay"
-              >
-                <ShrinkIcon />
-              </IconButton>
-            </ChromePanel>
-          </div>
-        </>
-      )}
-
+    <KeyboardNavContext.Provider value={keyboardNav}>
       <div
-        aria-hidden={!state.navOpen}
-        className="shell-backdrop md:hidden"
-        data-testid="mobile-backdrop"
-        onClick={closeSidebar}
-      />
-      <aside
-        ref={mobileDrawerRef}
-        aria-hidden={!state.navOpen}
-        aria-label="Workspace navigation"
-        aria-modal="true"
-        className="shell-sidebar-mobile md:hidden"
-        data-testid="mobile-drawer"
-        onKeyDown={handleMobileDrawerKeyDown}
-        role="dialog"
+        data-testid="shell-root"
+        data-fullscreen={state.fullscreen ? "true" : "false"}
+        data-nav-open={state.navOpen ? "true" : "false"}
+        className="shell-root bg-bg"
       >
-        <ChromePanel className="flex h-full flex-col shadow-lg">
-          <div className="flex items-center justify-between border-b border-bdr px-3 py-2">
-            <p className="text-sm font-medium text-txt">Navigation</p>
-            <IconButton
-              label="Close navigation"
-              onClick={closeSidebar}
-              data-testid="mobile-drawer-close"
-            >
-              <CloseIcon />
-            </IconButton>
-          </div>
-          <SidebarNav
-            onNavigate={handleMobileNavigate}
-            refreshToken={sidebarRefreshToken}
+        <header className="shell-header">
+          <ChromePanel className="shell-header-chrome h-full">
+            <div className="flex h-full min-w-0 items-center gap-2 px-2">
+              <div className="flex shrink-0 items-center gap-1">
+                <IconButton
+                  label={
+                    state.fullscreen ? "Exit fullscreen" : "Enter fullscreen"
+                  }
+                  onClick={toggleFullscreen}
+                  data-testid="fullscreen-toggle-header"
+                >
+                  {state.fullscreen ? <ShrinkIcon /> : <ExpandIcon />}
+                </IconButton>
+                <IconButton
+                  label="Search"
+                  onClick={openPalette}
+                  buttonRef={paletteTriggerRef}
+                  data-testid="palette-trigger"
+                >
+                  <SearchIcon />
+                </IconButton>
+                <IconButton
+                  label={state.navOpen ? "Close navigation" : "Open navigation"}
+                  onClick={toggleSidebar}
+                  buttonRef={menuButtonRef}
+                  data-testid="mobile-menu-button"
+                >
+                  {state.navOpen ? <CloseIcon /> : <MenuIcon />}
+                </IconButton>
+              </div>
+              <div className="min-w-0 flex-1">
+                <Breadcrumbs />
+              </div>
+              {headerActions.length > 0 && (
+                <ShellHeaderActions
+                  actions={headerActions}
+                  routeKey={location}
+                  mobile={!isDesktop}
+                />
+              )}
+            </div>
+          </ChromePanel>
+        </header>
+
+        <aside
+          className="shell-sidebar-desktop hidden md:block"
+          data-testid="desktop-sidebar"
+          aria-hidden={!state.navOpen}
+        >
+          <ChromePanel className="shell-sidebar-desktop-chrome h-full">
+            <SidebarNav refreshToken={sidebarRefreshToken} />
+          </ChromePanel>
+        </aside>
+
+        <main className="shell-main">{children}</main>
+
+        {state.paletteOpen && (
+          <CommandPalette
+            actions={allActions}
+            onClose={closePalette}
+            triggerRef={paletteTriggerRef}
           />
-        </ChromePanel>
-      </aside>
-    </div>
+        )}
+
+        {state.fullscreen && (
+          <>
+            <button
+              type="button"
+              aria-label="Reveal fullscreen controls"
+              className="shell-reveal-strip"
+              data-testid="fullscreen-reveal-strip"
+              onMouseEnter={revealFullscreenControls}
+              onFocus={revealFullscreenControls}
+              onClick={revealFullscreenControls}
+            />
+            <div
+              data-testid="fullscreen-controls"
+              data-visible={fullscreenControlsVisible ? "true" : "false"}
+              className={`shell-fullscreen-controls ${fullscreenControlsVisible ? "" : "shell-fullscreen-controls-hidden"}`}
+              onFocusCapture={handleControlsFocusCapture}
+              onBlurCapture={handleControlsBlurCapture}
+            >
+              <ChromePanel className="p-1">
+                <IconButton
+                  label="Exit fullscreen"
+                  onClick={toggleFullscreen}
+                  onMouseEnter={revealFullscreenControls}
+                  onClickCapture={revealFullscreenControls}
+                  data-testid="fullscreen-toggle-overlay"
+                >
+                  <ShrinkIcon />
+                </IconButton>
+              </ChromePanel>
+            </div>
+          </>
+        )}
+
+        <div
+          aria-hidden={!state.navOpen}
+          className="shell-backdrop md:hidden"
+          data-testid="mobile-backdrop"
+          onClick={closeSidebar}
+        />
+        <aside
+          ref={mobileDrawerRef}
+          aria-hidden={!state.navOpen}
+          aria-label="Workspace navigation"
+          aria-modal="true"
+          className="shell-sidebar-mobile md:hidden"
+          data-testid="mobile-drawer"
+          onKeyDown={handleMobileDrawerKeyDown}
+          role="dialog"
+        >
+          <ChromePanel className="flex h-full flex-col shadow-lg">
+            <div className="flex items-center justify-between border-b border-bdr px-3 py-2">
+              <p className="text-sm font-medium text-txt">Navigation</p>
+              <IconButton
+                label="Close navigation"
+                onClick={closeSidebar}
+                data-testid="mobile-drawer-close"
+              >
+                <CloseIcon />
+              </IconButton>
+            </div>
+            <SidebarNav
+              onNavigate={handleMobileNavigate}
+              refreshToken={sidebarRefreshToken}
+            />
+          </ChromePanel>
+        </aside>
+        <ModeIndicator />
+      </div>
+    </KeyboardNavContext.Provider>
   );
 }
