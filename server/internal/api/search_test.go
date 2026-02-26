@@ -119,4 +119,16 @@ func TestSearchPaths(t *testing.T) {
 			t.Errorf("status=%d, want 405", resp.StatusCode)
 		}
 	})
+
+	t.Run("unicode lowercase-expansion paths do not crash search", func(t *testing.T) {
+		if err := ws.WriteFile("notes/İfile.md", []byte(""), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		resp := doRequest(t, http.MethodGet, srv.URL+"/api/search/paths?q=if", nil)
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			t.Fatalf("status=%d, want 200, body=%s", resp.StatusCode, body)
+		}
+	})
 }

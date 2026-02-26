@@ -33,6 +33,16 @@ func TestFuzzyMatchSubsequenceGating(t *testing.T) {
 	}
 }
 
+func TestFuzzyMatchUnicodeLowercaseExpansionDoesNotPanic(t *testing.T) {
+	score, ok := api.FuzzyMatch("if", "İfile.md")
+	if !ok {
+		t.Fatal("expected unicode candidate to match query")
+	}
+	if score == 0 {
+		t.Fatal("expected non-zero score for unicode candidate match")
+	}
+}
+
 func TestFuzzyMatchScoring(t *testing.T) {
 	check := func(t *testing.T, query string, better, worse string) {
 		t.Helper()

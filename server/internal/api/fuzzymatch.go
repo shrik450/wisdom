@@ -2,7 +2,6 @@ package api
 
 import (
 	"sort"
-	"strings"
 	"unicode"
 	"unicode/utf8"
 
@@ -26,9 +25,15 @@ func FuzzyMatch(query, candidate string) (int, bool) {
 		return 0, false
 	}
 
-	qRunes := []rune(strings.ToLower(query))
+	qRunes := []rune(query)
+	for i := range qRunes {
+		qRunes[i] = unicode.ToLower(qRunes[i])
+	}
 	cRunes := []rune(candidate)
-	cLower := []rune(strings.ToLower(candidate))
+	cLower := make([]rune, len(cRunes))
+	for i, r := range cRunes {
+		cLower[i] = unicode.ToLower(r)
+	}
 
 	qLen := len(qRunes)
 	cLen := len(cLower)
