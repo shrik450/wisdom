@@ -1,4 +1,4 @@
-import type { KeyBindingDef } from "./keyboard/keyboard-nav";
+import type { KeyBindingDef } from "./keyboard/keybind-state-machine";
 import { defaultKeybinds as paletteBinds } from "./components/command-palette";
 
 export const keybinds: KeyBindingDef[] = [

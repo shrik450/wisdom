@@ -32,9 +32,13 @@ export function WorkspaceView() {
     return allViewers
       .filter((route) => route.component !== activeViewer?.component)
       .map((route, index) => ({
+        kind: "command" as const,
         id: `shell.view-as.${index}`,
         label: `View as ${route.name}`,
-        onSelect: () => setViewerOverride(route.name),
+        onSelect: (count: number | null) => {
+          void count;
+          setViewerOverride(route.name);
+        },
         priority: -50,
         headerDisplay: "overflow",
       }));

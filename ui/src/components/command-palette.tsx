@@ -10,11 +10,9 @@ import { useLocation } from "wouter";
 import { searchPaths, type PathSearchResult } from "../api/search";
 import { buildWorkspaceHref } from "../path-utils";
 import { type ResolvedAction } from "../actions/action-model";
-import { useActions } from "../actions/action-registry";
-import {
-  type KeyBindingDef,
-  useKeyboardNavContext,
-} from "../keyboard/keyboard-nav";
+import { useActions, type ActionSpec } from "../actions/action-registry";
+import { useKeyboardNavContext } from "../keyboard/keyboard-nav";
+import type { KeyBindingDef } from "../keyboard/keybind-state-machine";
 
 const DEBOUNCE_MS = 150;
 const SEARCH_LIMIT = 20;
@@ -32,6 +30,8 @@ interface CommandPaletteProps {
   onClose: () => void;
   triggerRef: RefObject<HTMLButtonElement | null>;
 }
+
+type ResolvedCommandAction = Extract<ResolvedAction, { kind: "command" }>;
 
 function fileResultsToPaletteItems(
   results: PathSearchResult[],
@@ -55,7 +55,7 @@ function fileResultsToPaletteItems(
 }
 
 function filterActions(
-  actions: readonly ResolvedAction[],
+  actions: readonly ResolvedCommandAction[],
   query: string,
 ): PaletteItem[] {
   const lowerQuery = query.toLowerCase();
@@ -65,7 +65,7 @@ function filterActions(
       id: `action:${action.id}`,
       label: action.label,
       disabled: action.disabled,
-      onSelect: action.onSelect,
+      onSelect: () => action.onSelect(null),
     }));
 }
 
@@ -152,12 +152,18 @@ export function CommandPalette({
     };
   }, [triggerRef]);
 
+  const commandActions = useMemo<readonly ResolvedCommandAction[]>(() => {
+    return actions.filter((action): action is ResolvedCommandAction => {
+      return action.kind === "command";
+    });
+  }, [actions]);
+
   const items = useMemo<PaletteItem[]>(() => {
     if (isCommandMode) {
-      return filterActions(actions, commandQuery);
+      return filterActions(commandActions, commandQuery);
     }
     return fileResultsToPaletteItems(fileResults, navigate);
-  }, [isCommandMode, commandQuery, actions, fileResults, navigate]);
+  }, [isCommandMode, commandQuery, commandActions, fileResults, navigate]);
 
   // Reset selection when items change.
   useEffect(() => {
@@ -182,30 +188,38 @@ export function CommandPalette({
     return () => popMode();
   }, [pushMode, popMode]);
 
-  const paletteActions = useMemo(
+  const paletteActions = useMemo<readonly ActionSpec[]>(
     () => [
       {
+        kind: "command",
         id: "palette.next",
         label: "Next Result",
-        onSelect: () =>
-          setSelectedIndex((prev) => (prev + 1) % Math.max(items.length, 1)),
+        onSelect: (count) => {
+          void count;
+          setSelectedIndex((prev) => (prev + 1) % Math.max(items.length, 1));
+        },
         headerDisplay: "palette-only" as const,
       },
       {
+        kind: "command",
         id: "palette.prev",
         label: "Previous Result",
-        onSelect: () =>
+        onSelect: (count) => {
+          void count;
           setSelectedIndex(
             (prev) =>
               (prev - 1 + Math.max(items.length, 1)) %
               Math.max(items.length, 1),
-          ),
+          );
+        },
         headerDisplay: "palette-only" as const,
       },
       {
+        kind: "command",
         id: "palette.select",
         label: "Select Result",
-        onSelect: () => {
+        onSelect: (count) => {
+          void count;
           if (items[selectedIndex]) {
             selectItem(items[selectedIndex]);
           }
@@ -213,9 +227,13 @@ export function CommandPalette({
         headerDisplay: "palette-only" as const,
       },
       {
+        kind: "command",
         id: "palette.close",
         label: "Close Palette",
-        onSelect: onClose,
+        onSelect: (count) => {
+          void count;
+          onClose();
+        },
         headerDisplay: "palette-only" as const,
       },
     ],

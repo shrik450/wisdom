@@ -4,8 +4,8 @@ const DEFAULT_ACTION_WIDTH_PX = 96;
 const DEFAULT_OVERFLOW_BUTTON_WIDTH_PX = 88;
 const DEFAULT_ACTION_GAP_PX = 8;
 
-export interface HeaderActionLayoutInput {
-  actions: readonly ResolvedAction[];
+export interface HeaderActionLayoutInput<TAction extends ResolvedAction> {
+  actions: readonly TAction[];
   containerWidth: number;
   buttonWidths: Readonly<Record<string, number>>;
   overflowButtonWidth?: number;
@@ -13,9 +13,9 @@ export interface HeaderActionLayoutInput {
   mobile: boolean;
 }
 
-export interface HeaderActionLayout {
-  inlineActions: readonly ResolvedAction[];
-  overflowActions: readonly ResolvedAction[];
+export interface HeaderActionLayout<TAction extends ResolvedAction> {
+  inlineActions: readonly TAction[];
+  overflowActions: readonly TAction[];
 }
 
 function widthForAction(
@@ -29,9 +29,9 @@ function widthForAction(
   return width;
 }
 
-export function partitionHeaderActions(
-  input: HeaderActionLayoutInput,
-): HeaderActionLayout {
+export function partitionHeaderActions<TAction extends ResolvedAction>(
+  input: HeaderActionLayoutInput<TAction>,
+): HeaderActionLayout<TAction> {
   if (input.actions.length === 0) {
     return {
       inlineActions: [],
@@ -77,7 +77,7 @@ export function partitionHeaderActions(
   const inlineCandidates = input.actions.filter(
     (action) => action.headerDisplay === "inline",
   );
-  const inlineActions: ResolvedAction[] = [];
+  const inlineActions: TAction[] = [];
   let inlineWidth = 0;
 
   for (let index = 0; index < inlineCandidates.length; index += 1) {

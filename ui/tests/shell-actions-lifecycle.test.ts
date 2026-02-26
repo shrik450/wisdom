@@ -29,9 +29,11 @@ function Contributor({
 }) {
   useActions([
     {
+      kind: "command",
       id,
       label,
-      onSelect: () => {
+      onSelect: (count) => {
+        void count;
         void stamp;
       },
     },
@@ -141,6 +143,127 @@ test("useActions updates do not churn registration order", async () => {
     latest.map((action) => action.registrationOrder),
     [0, 1],
   );
+
+  await act(async () => {
+    renderer.unmount();
+  });
+});
+
+function KindSwitchContributor({ kind }: { kind: "command" | "motion" }) {
+  useActions(
+    kind === "command"
+      ? [
+          {
+            kind: "command",
+            id: "switch",
+            label: "Switch",
+            onSelect: (count) => {
+              void count;
+            },
+          },
+        ]
+      : [
+          {
+            kind: "motion",
+            id: "switch",
+            label: "Switch",
+            range: (count, char) => {
+              void count;
+              void char;
+              return { from: 0, to: 0 };
+            },
+          },
+        ],
+  );
+  return null;
+}
+
+test("useActions throws when an action ID changes kind", async () => {
+  const renderer = await renderWithAct(
+    createElement(
+      ActionRegistryProvider,
+      null,
+      createElement(KindSwitchContributor, { kind: "command" }),
+    ),
+  );
+
+  await assert.rejects(async () => {
+    await act(async () => {
+      renderer.update(
+        createElement(
+          ActionRegistryProvider,
+          null,
+          createElement(KindSwitchContributor, { kind: "motion" }),
+        ),
+      );
+    });
+  }, /changed kind/);
+
+  await act(async () => {
+    renderer.unmount();
+  });
+});
+
+function CommandActionContributor({
+  onSelect,
+}: {
+  onSelect: (count: number | null) => void;
+}) {
+  useActions([
+    {
+      kind: "command",
+      id: "cmd",
+      label: "Command",
+      onSelect,
+    },
+  ]);
+  return null;
+}
+
+function CommandActionCapture({
+  onAction,
+}: {
+  onAction: (action: (count: number | null) => void) => void;
+}) {
+  const resolvedActions = useResolvedActions();
+
+  useEffect(() => {
+    const action = resolvedActions.find((resolvedAction) => {
+      return resolvedAction.id === "cmd";
+    });
+    if (!action || action.kind !== "command") {
+      return;
+    }
+    onAction(action.onSelect);
+  }, [onAction, resolvedActions]);
+
+  return null;
+}
+
+test("command wrapper forwards null count", async () => {
+  let received: number | null | undefined;
+  let invoke: ((count: number | null) => void) | null = null;
+
+  const renderer = await renderWithAct(
+    createElement(
+      ActionRegistryProvider,
+      null,
+      createElement(CommandActionContributor, {
+        onSelect: (count) => {
+          received = count;
+        },
+      }),
+      createElement(CommandActionCapture, {
+        onAction: (action) => {
+          invoke = action;
+        },
+      }),
+    ),
+  );
+
+  assert.ok(invoke);
+  invoke(null);
+  assert.equal(received, null);
 
   await act(async () => {
     renderer.unmount();

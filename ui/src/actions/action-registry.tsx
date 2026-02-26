@@ -9,7 +9,10 @@ import {
   useState,
 } from "react";
 import {
+  type CommandActionSpec,
   createActionRegistryState,
+  type MotionActionSpec,
+  type OperatorActionSpec,
   removeActionContributor,
   resolveActions,
   upsertActionContributor,
@@ -39,33 +42,103 @@ function contributorActionKey(contributorId: number, actionId: string): string {
   return `${contributorId}\u0000${actionId}`;
 }
 
-// Replace each action's onSelect with a stable wrapper that looks up the
-// real handler at call time.  This keeps the function reference identity
-// constant across re-renders so the model's areActionsEqual check can
-// detect no-op updates without the onSelect pointer changing every render.
+type ActionHandler =
+  | { kind: "command"; fn: CommandActionSpec["onSelect"] }
+  | { kind: "motion"; fn: MotionActionSpec["range"] }
+  | { kind: "operator"; fn: OperatorActionSpec["apply"] };
+
+// Replace each action's handler with a stable wrapper that looks up the
+// current handler at call time. This keeps function identity stable across
+// re-renders so areActionsEqual can detect no-op updates.
 function toRegisteredActions(
   contributorId: number,
   actions: readonly ActionSpec[],
-  handlers: Map<string, () => void>,
-  wrappers: Map<string, () => void>,
+  handlers: Map<string, ActionHandler>,
+  wrappers: Map<string, ActionHandler>,
 ): ActionSpec[] {
   return actions.map((action) => {
     const key = contributorActionKey(contributorId, action.id);
-    handlers.set(key, action.onSelect);
-
-    let wrapper = wrappers.get(key);
-    if (!wrapper) {
-      wrapper = () => {
-        const handler = handlers.get(key);
-        handler?.();
-      };
-      wrappers.set(key, wrapper);
+    const existingWrapper = wrappers.get(key);
+    if (existingWrapper && existingWrapper.kind !== action.kind) {
+      throw new Error(
+        `Action "${action.id}" changed kind from "${existingWrapper.kind}" to "${action.kind}" for contributor ${contributorId}.`,
+      );
     }
 
-    return {
-      ...action,
-      onSelect: wrapper,
-    };
+    switch (action.kind) {
+      case "command": {
+        handlers.set(key, { kind: "command", fn: action.onSelect });
+        let wrapper = wrappers.get(key);
+        if (!wrapper) {
+          wrapper = {
+            kind: "command",
+            fn: (count: number | null) => {
+              const handler = handlers.get(key);
+              if (!handler || handler.kind !== "command") {
+                throw new Error(`Expected command handler for ${key}`);
+              }
+              handler.fn(count);
+            },
+          };
+          wrappers.set(key, wrapper);
+        }
+        if (wrapper.kind !== "command") {
+          throw new Error(`Expected command wrapper for ${key}`);
+        }
+        return {
+          ...action,
+          onSelect: wrapper.fn,
+        };
+      }
+      case "motion": {
+        handlers.set(key, { kind: "motion", fn: action.range });
+        let wrapper = wrappers.get(key);
+        if (!wrapper) {
+          wrapper = {
+            kind: "motion",
+            fn: (count: number | null, char?: string) => {
+              const handler = handlers.get(key);
+              if (!handler || handler.kind !== "motion") {
+                throw new Error(`Expected motion handler for ${key}`);
+              }
+              return handler.fn(count, char);
+            },
+          };
+          wrappers.set(key, wrapper);
+        }
+        if (wrapper.kind !== "motion") {
+          throw new Error(`Expected motion wrapper for ${key}`);
+        }
+        return {
+          ...action,
+          range: wrapper.fn,
+        };
+      }
+      case "operator": {
+        handlers.set(key, { kind: "operator", fn: action.apply });
+        let wrapper = wrappers.get(key);
+        if (!wrapper) {
+          wrapper = {
+            kind: "operator",
+            fn: (range: { from: number; to: number }) => {
+              const handler = handlers.get(key);
+              if (!handler || handler.kind !== "operator") {
+                throw new Error(`Expected operator handler for ${key}`);
+              }
+              handler.fn(range);
+            },
+          };
+          wrappers.set(key, wrapper);
+        }
+        if (wrapper.kind !== "operator") {
+          throw new Error(`Expected operator wrapper for ${key}`);
+        }
+        return {
+          ...action,
+          apply: wrapper.fn,
+        };
+      }
+    }
   });
 }
 
@@ -73,8 +146,8 @@ function removeDeletedActionHandlers(
   contributorId: number,
   previousActions: readonly ActionSpec[],
   nextActions: readonly ActionSpec[],
-  handlers: Map<string, () => void>,
-  wrappers: Map<string, () => void>,
+  handlers: Map<string, ActionHandler>,
+  wrappers: Map<string, ActionHandler>,
 ) {
   const nextActionIds = new Set(nextActions.map((action) => action.id));
   for (const previousAction of previousActions) {
@@ -90,8 +163,8 @@ function removeDeletedActionHandlers(
 function removeAllActionHandlers(
   contributorId: number,
   actions: readonly ActionSpec[],
-  handlers: Map<string, () => void>,
-  wrappers: Map<string, () => void>,
+  handlers: Map<string, ActionHandler>,
+  wrappers: Map<string, ActionHandler>,
 ) {
   for (const action of actions) {
     const key = contributorActionKey(contributorId, action.id);
@@ -104,8 +177,8 @@ export function ActionRegistryProvider({ children }: { children: ReactNode }) {
   const [registry, setRegistry] = useState<ActionRegistryState>(() => {
     return createActionRegistryState();
   });
-  const actionHandlersRef = useRef<Map<string, () => void>>(new Map());
-  const actionWrappersRef = useRef<Map<string, () => void>>(new Map());
+  const actionHandlersRef = useRef<Map<string, ActionHandler>>(new Map());
+  const actionWrappersRef = useRef<Map<string, ActionHandler>>(new Map());
 
   const upsertContributor = useCallback(
     (contributorId: number, actions: readonly ActionSpec[]) => {

@@ -8,79 +8,31 @@ import {
   useState,
 } from "react";
 import type { ResolvedAction } from "../actions/action-model";
-
-export interface KeyBindingDef {
-  mode: string;
-  keys: string;
-  action: string;
-  description?: string;
-}
-
-export type MatchResult = "full" | "prefix" | "none";
+import {
+  dispatch,
+  initialState,
+  type KeyBindingDef,
+  type KeybindState,
+} from "./keybind-state-machine";
 
 export interface KeyboardNavContextValue {
   mode: string;
   pendingKeys: readonly string[];
+  count: number | null;
+  pendingOperatorKey: string | null;
+  charPendingKey: string | null;
   pushMode: (mode: string) => void;
   popMode: () => void;
 }
 
 const SEQUENCE_TIMEOUT_MS = 500;
 const INPUT_SELECTOR = "input, textarea, select, [contenteditable='true']";
-const MODIFIER_KEYS = new Set(["Control", "Meta", "Alt", "Shift"]);
 
-export function parseKeys(keys: string): string[] {
-  return keys.split(" ");
-}
-
-function parseKeyStep(step: string): { modifiers: Set<string>; key: string } {
-  const parts = step.split("+");
-  const key = parts[parts.length - 1];
-  const modifiers = new Set(parts.slice(0, -1));
-  return { modifiers, key };
-}
-
-const KEY_ALIASES: Record<string, string> = { Space: " " };
-const REVERSE_KEY_ALIASES: Record<string, string> = { " ": "Space" };
-
-function eventMatchesStep(event: KeyboardEvent, step: string): boolean {
-  const { modifiers, key } = parseKeyStep(step);
-  const resolved = KEY_ALIASES[key] ?? key;
-  if (event.key !== resolved) return false;
-  if (modifiers.has("Ctrl") !== event.ctrlKey) return false;
-  if (modifiers.has("Meta") !== event.metaKey) return false;
-  if (modifiers.has("Alt") !== event.altKey) return false;
-  if (key.length > 1 && modifiers.has("Shift") !== event.shiftKey) return false;
-  return true;
-}
-
-export function keyRepresentation(event: KeyboardEvent): string {
-  const parts: string[] = [];
-  if (event.ctrlKey) parts.push("Ctrl");
-  if (event.metaKey) parts.push("Meta");
-  if (event.altKey) parts.push("Alt");
-  if (event.shiftKey && event.key.length > 1) parts.push("Shift");
-  parts.push(REVERSE_KEY_ALIASES[event.key] ?? event.key);
-  return parts.join("+");
-}
-
-export function matchBinding(
-  pending: readonly string[],
-  event: KeyboardEvent,
-  binding: KeyBindingDef,
-): MatchResult {
-  const sequence = parseKeys(binding.keys);
-  const nextIndex = pending.length;
-
-  if (nextIndex >= sequence.length) return "none";
-
-  for (let i = 0; i < pending.length; i++) {
-    if (pending[i] !== sequence[i]) return "none";
+function multiplyCount(a: number | null, b: number | null): number | null {
+  if (a === null && b === null) {
+    return null;
   }
-
-  if (!eventMatchesStep(event, sequence[nextIndex])) return "none";
-
-  return nextIndex + 1 === sequence.length ? "full" : "prefix";
+  return (a ?? 1) * (b ?? 1);
 }
 
 function isInputFocused(): boolean {
@@ -114,30 +66,70 @@ export function useKeyboardNav(
   resolvedActions: readonly ResolvedAction[],
 ): { contextValue: KeyboardNavContextValue } {
   const modeStackRef = useRef<string[]>([]);
-  const pendingKeysRef = useRef<string[]>([]);
+  const stateRef = useRef<KeybindState>(initialState());
   const timeoutRef = useRef<number>(0);
   const [mode, setMode] = useState("normal");
   const [pendingKeys, setPendingKeys] = useState<readonly string[]>([]);
+  const [count, setCount] = useState<number | null>(null);
+  const [pendingOperatorKey, setPendingOperatorKey] = useState<string | null>(
+    null,
+  );
+  const [charPendingKey, setCharPendingKey] = useState<string | null>(null);
 
-  const actionMapRef = useRef(new Map<string, () => void>());
+  const actionMapRef = useRef(new Map<string, ResolvedAction>());
   useEffect(() => {
-    const map = new Map<string, () => void>();
+    const map = new Map<string, ResolvedAction>();
     for (const action of resolvedActions) {
-      map.set(action.id, action.onSelect);
+      map.set(action.id, action);
     }
     actionMapRef.current = map;
   }, [resolvedActions]);
 
   const syncState = useCallback(() => {
     setMode(effectiveMode(modeStackRef.current));
-    setPendingKeys([...pendingKeysRef.current]);
+    const state = stateRef.current;
+    setPendingKeys([...state.pendingKeys]);
+    setCount(state.count);
+    setPendingOperatorKey(state.pendingOperator?.key ?? null);
+    setCharPendingKey(state.charPending?.key ?? null);
   }, []);
 
-  const clearPending = useCallback(() => {
-    pendingKeysRef.current = [];
+  const clearPendingTimeout = useCallback(() => {
     window.clearTimeout(timeoutRef.current);
-    syncState();
+    timeoutRef.current = 0;
+  }, []);
+
+  const onTimeout = useCallback(() => {
+    const state = stateRef.current;
+    if (state.charPending) {
+      return;
+    }
+
+    if (state.pendingOperator) {
+      stateRef.current = initialState();
+      syncState();
+      return;
+    }
+
+    if (state.pendingKeys.length > 0) {
+      stateRef.current = {
+        ...state,
+        pendingKeys: [],
+      };
+      syncState();
+    }
   }, [syncState]);
+
+  const resetTimeout = useCallback(() => {
+    window.clearTimeout(timeoutRef.current);
+    timeoutRef.current = window.setTimeout(onTimeout, SEQUENCE_TIMEOUT_MS);
+  }, [onTimeout]);
+
+  const clearPending = useCallback(() => {
+    stateRef.current = initialState();
+    clearPendingTimeout();
+    syncState();
+  }, [clearPendingTimeout, syncState]);
 
   const pushMode = useCallback(
     (m: string) => {
@@ -154,59 +146,66 @@ export function useKeyboardNav(
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
-      if (MODIFIER_KEYS.has(event.key)) return;
-
       const currentMode = effectiveMode(modeStackRef.current);
-      const pending = pendingKeysRef.current;
+      const { nextState, result } = dispatch(
+        stateRef.current,
+        event,
+        bindings,
+        actionMapRef.current,
+        currentMode,
+        isInputFocused(),
+      );
+      stateRef.current = nextState;
 
-      const modeBindings = bindings.filter((b) => b.mode === currentMode);
-
-      let bestFullMatch: KeyBindingDef | null = null;
-      let hasPrefix = false;
-
-      for (const binding of modeBindings) {
-        const result = matchBinding(pending, event, binding);
-        if (result === "full") {
-          if (actionMapRef.current.has(binding.action)) {
-            bestFullMatch = binding;
+      switch (result.type) {
+        case "none":
+          return;
+        case "pending":
+          if (result.preventDefault) {
+            event.preventDefault();
           }
-        } else if (result === "prefix") {
-          hasPrefix = true;
-        }
-      }
-
-      if (bestFullMatch) {
-        event.preventDefault();
-        pendingKeysRef.current = [];
-        window.clearTimeout(timeoutRef.current);
-        syncState();
-        actionMapRef.current.get(bestFullMatch.action)?.();
-        return;
-      }
-
-      if (hasPrefix) {
-        event.preventDefault();
-        const keyRep = keyRepresentation(event);
-        pendingKeysRef.current = [...pending, keyRep];
-        window.clearTimeout(timeoutRef.current);
-        timeoutRef.current = window.setTimeout(() => {
-          pendingKeysRef.current = [];
           syncState();
-        }, SEQUENCE_TIMEOUT_MS);
-        syncState();
-        return;
-      }
-
-      if (pending.length > 0) {
-        pendingKeysRef.current = [];
-        window.clearTimeout(timeoutRef.current);
-        syncState();
+          if (
+            !nextState.charPending &&
+            (nextState.pendingKeys.length > 0 || nextState.pendingOperator)
+          ) {
+            resetTimeout();
+          } else {
+            clearPendingTimeout();
+          }
+          return;
+        case "reset":
+          event.preventDefault();
+          syncState();
+          clearPendingTimeout();
+          return;
+        case "execute-command":
+          event.preventDefault();
+          result.action.onSelect(result.count);
+          syncState();
+          clearPendingTimeout();
+          return;
+        case "execute-motion":
+          event.preventDefault();
+          result.action.range(result.count, result.char);
+          syncState();
+          clearPendingTimeout();
+          return;
+        case "execute-operator-motion": {
+          event.preventDefault();
+          const count = multiplyCount(result.operatorCount, result.motionCount);
+          const range = result.motion.range(count, result.char);
+          result.operator.apply(range);
+          syncState();
+          clearPendingTimeout();
+          return;
+        }
       }
     };
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [bindings, syncState]);
+  }, [bindings, clearPendingTimeout, resetTimeout, syncState]);
 
   useEffect(() => {
     const onFocusChange = () => setMode(effectiveMode(modeStackRef.current));
@@ -219,8 +218,24 @@ export function useKeyboardNav(
   }, []);
 
   const contextValue = useMemo<KeyboardNavContextValue>(
-    () => ({ mode, pendingKeys, pushMode, popMode }),
-    [mode, pendingKeys, pushMode, popMode],
+    () => ({
+      mode,
+      pendingKeys,
+      count,
+      pendingOperatorKey,
+      charPendingKey,
+      pushMode,
+      popMode,
+    }),
+    [
+      charPendingKey,
+      count,
+      mode,
+      pendingKeys,
+      pendingOperatorKey,
+      popMode,
+      pushMode,
+    ],
   );
 
   return { contextValue };
@@ -235,11 +250,25 @@ function formatPendingKey(key: string): string {
 }
 
 export function ModeIndicator() {
-  const { mode, pendingKeys } = useKeyboardNavContext();
+  const { mode, pendingKeys, count, pendingOperatorKey, charPendingKey } =
+    useKeyboardNavContext();
+
+  const parts: string[] = [];
+  if (count !== null) {
+    parts.push(String(count));
+  }
+  if (pendingOperatorKey) {
+    parts.push(pendingOperatorKey);
+  }
+  if (charPendingKey) {
+    parts.push(charPendingKey);
+  }
+  if (pendingKeys.length > 0) {
+    parts.push(...pendingKeys.map(formatPendingKey));
+  }
 
   const displayMode = mode !== "normal" ? mode.toUpperCase() : null;
-  const displayKeys =
-    pendingKeys.length > 0 ? pendingKeys.map(formatPendingKey).join(" ") : null;
+  const displayKeys = parts.length > 0 ? parts.join(" ") : null;
 
   if (!displayMode && !displayKeys) return null;
 
