@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"mime"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -92,6 +93,14 @@ func TestGet(t *testing.T) {
 
 		if resp.StatusCode != 200 {
 			t.Fatalf("expected 200, got %d", resp.StatusCode)
+		}
+		ct := resp.Header.Get("Content-Type")
+		mediaType, _, err := mime.ParseMediaType(ct)
+		if err != nil {
+			t.Fatalf("invalid content-type %q: %v", ct, err)
+		}
+		if mediaType != "application/vnd.wisdom.dirlist+json" {
+			t.Fatalf("expected directory content-type, got %q", ct)
 		}
 
 		var entries []dirEntry

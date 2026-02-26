@@ -25,6 +25,11 @@ type Workspace struct {
 	root string
 }
 
+type WalkEntry struct {
+	Path  string
+	IsDir bool
+}
+
 var (
 	defaultWorkspace *Workspace
 	defaultWsOnce    sync.Once
@@ -190,6 +195,43 @@ func (w *Workspace) Move(oldname, newname string) error {
 		return err
 	}
 	return os.Rename(oldpath, newpath)
+}
+
+// WalkFiles returns all workspace-relative paths (files and directories).
+// Hidden directories at the workspace root (e.g. .git) are skipped entirely.
+func (w *Workspace) WalkFiles() ([]WalkEntry, error) {
+	var entries []WalkEntry
+	err := filepath.WalkDir(w.root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			// Skip unreadable entries rather than aborting the walk;
+			// partial results are more useful than an error for search.
+			return nil
+		}
+
+		rel, relErr := filepath.Rel(w.root, path)
+		if relErr != nil {
+			return nil
+		}
+		if rel == "." {
+			return nil
+		}
+
+		// Skip hidden directories at root level
+		name := d.Name()
+		if d.IsDir() && len(name) > 0 && name[0] == '.' {
+			parent, _ := filepath.Rel(w.root, filepath.Dir(path))
+			if parent == "." {
+				return fs.SkipDir
+			}
+		}
+
+		entries = append(entries, WalkEntry{Path: filepath.ToSlash(rel), IsDir: d.IsDir()})
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("walking workspace: %w", err)
+	}
+	return entries, nil
 }
 
 // ReadDir lists entries in a workspace-relative directory.

@@ -1,0 +1,202 @@
+:root {
+  --bg: #faf6f1;
+  --surface: #f0ebe4;
+  --surface-raised: #e8e1d7;
+  --txt: #2c2418;
+  --txt-muted: #7a6e5d;
+  --bdr: #ddd5c9;
+  --accent: #8b7355;
+  --accent-hover: #755f43;
+  --accent-text: #faf6f1;
+  --link: #7a5c38;
+  --highlight: #f5e6c8;
+  --shell-header-h: 3.25rem;
+  --shell-sidebar-w: 15.5rem;
+  --shell-gap: 0.5rem;
+  --shell-pad: 0.5rem;
+  --shell-z-header: 40;
+  --shell-z-sidebar: 30;
+  --shell-z-overlay: 70;
+  --shell-z-palette: 90;
+  --shell-z-mode-indicator: 50;
+  --shell-reveal-strip-h: 0.75rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-mode="light"]) {
+    --bg: #262320;
+    --surface: #322e2a;
+    --surface-raised: #3d3834;
+    --txt: #ddd6ca;
+    --txt-muted: #9e9586;
+    --bdr: #4a443d;
+    --accent: #b89b76;
+    --accent-hover: #cbb08c;
+    --accent-text: #262320;
+    --link: #c0a37e;
+    --highlight: #443c2e;
+  }
+}
+
+[data-mode="dark"] {
+  --bg: #262320;
+  --surface: #322e2a;
+  --surface-raised: #3d3834;
+  --txt: #ddd6ca;
+  --txt-muted: #9e9586;
+  --bdr: #4a443d;
+  --accent: #b89b76;
+  --accent-hover: #cbb08c;
+  --accent-text: #262320;
+  --link: #c0a37e;
+  --highlight: #443c2e;
+}
+
+.shell-root {
+  --shell-track-header: var(--shell-header-h);
+  --shell-track-sidebar: var(--shell-sidebar-w);
+  --shell-track-gap: var(--shell-gap);
+
+  display: grid;
+  min-height: 100vh;
+  padding: var(--shell-pad);
+  gap: var(--shell-track-gap);
+  grid-template-columns: var(--shell-track-sidebar) minmax(0, 1fr);
+  grid-template-rows: var(--shell-track-header) minmax(0, 1fr);
+  grid-template-areas:
+    "header header"
+    "sidebar main";
+}
+
+.shell-root[data-fullscreen="true"] {
+  --shell-track-header: 0px;
+  --shell-track-sidebar: 0px;
+  --shell-track-gap: 0px;
+}
+
+.shell-root[data-nav-open="false"] {
+  --shell-track-sidebar: 0px;
+}
+
+.shell-header {
+  grid-area: header;
+  min-width: 0;
+  z-index: var(--shell-z-header);
+}
+
+.shell-sidebar-desktop {
+  grid-area: sidebar;
+  min-height: 0;
+  overflow: hidden;
+  z-index: var(--shell-z-sidebar);
+}
+
+.shell-main {
+  grid-area: main;
+  min-width: 0;
+  min-height: 0;
+}
+
+.shell-header-chrome,
+.shell-sidebar-desktop-chrome {
+  transition:
+    transform 180ms ease,
+    opacity 180ms ease;
+}
+
+.shell-root[data-fullscreen="true"] .shell-header-chrome {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(calc(-1 * var(--shell-header-h)));
+  pointer-events: none;
+}
+
+.shell-root[data-fullscreen="true"] .shell-sidebar-desktop-chrome,
+.shell-root[data-nav-open="false"] .shell-sidebar-desktop-chrome {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(calc(-1 * var(--shell-sidebar-w)));
+  pointer-events: none;
+}
+
+.shell-reveal-strip {
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: var(--shell-reveal-strip-h);
+  z-index: var(--shell-z-overlay);
+  background: transparent;
+}
+
+.shell-fullscreen-controls {
+  position: fixed;
+  top: var(--shell-pad);
+  left: var(--shell-pad);
+  z-index: calc(var(--shell-z-overlay) + 1);
+  transform: translateY(0);
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease,
+    visibility 160ms ease;
+}
+
+.shell-fullscreen-controls-hidden {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-0.5rem);
+  pointer-events: none;
+}
+
+.shell-backdrop {
+  position: fixed;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  z-index: var(--shell-z-overlay);
+  transition: opacity 180ms ease;
+  background: rgb(0 0 0 / 0.35);
+}
+
+.shell-sidebar-mobile {
+  position: fixed;
+  top: var(--shell-pad);
+  bottom: var(--shell-pad);
+  left: var(--shell-pad);
+  width: min(22rem, calc(100vw - (var(--shell-pad) * 2)));
+  z-index: calc(var(--shell-z-overlay) + 1);
+  transform: translateX(calc(-100% - var(--shell-pad)));
+  pointer-events: none;
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.shell-root[data-nav-open="true"] .shell-backdrop {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.shell-root[data-nav-open="true"] .shell-sidebar-mobile {
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+@media (max-width: 767px) {
+  .shell-root {
+    --shell-track-sidebar: 0px;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "header"
+      "main";
+  }
+}
+
+@media (min-width: 768px) {
+  .shell-backdrop,
+  .shell-sidebar-mobile {
+    display: none;
+  }
+}
+
+@media (pointer: coarse) {
+  [data-testid="mode-indicator"] {
+    display: none !important;
+  }
+}

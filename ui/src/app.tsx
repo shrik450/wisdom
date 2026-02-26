@@ -1,8 +1,26 @@
+import { Route, Switch, Redirect } from "wouter";
+import { Shell } from "./components/shell";
+import { ActionRegistryProvider } from "./actions/action-registry";
+import { WorkspaceEntryProvider } from "./hooks/use-workspace-entry-info";
+import { WorkspaceMutatedProvider } from "./hooks/use-workspace-mutated";
+import { WorkspaceView } from "./pages/workspace";
+import "./viewers";
+
 export function App() {
   return (
-    <main className="min-h-screen p-6">
-      <h1 className="text-2xl font-semibold">Wisdom</h1>
-      <p className="mt-2 text-slate-600">Hello, world!</p>
-    </main>
+    <WorkspaceMutatedProvider>
+      <ActionRegistryProvider>
+        <WorkspaceEntryProvider>
+          <Shell>
+            <Switch>
+              <Route path="/">
+                <Redirect to="/ws/" />
+              </Route>
+              <Route path="/ws/*" component={WorkspaceView} />
+            </Switch>
+          </Shell>
+        </WorkspaceEntryProvider>
+      </ActionRegistryProvider>
+    </WorkspaceMutatedProvider>
   );
 }

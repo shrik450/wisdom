@@ -41,6 +41,14 @@ is complete, which avoids partial files in the workspace on write failures.
 Only this temporary staging file is created outside the workspace, and it is
 removed on failure or after a successful rename.
 
+### Known Degradation: Path Search and Symlinks
+
+The `/api/search/paths` endpoint is path-listing based and can include symlink
+entries whose targets resolve outside the workspace root. Those entries may
+appear in command palette results but fail to open through normal filesystem
+APIs, because those APIs enforce workspace boundary checks during resolution.
+This is currently an accepted UX degradation.
+
 ## Frontend
 
 The frontend is currently a TypeScript React SPA, but the exact framework can
@@ -53,6 +61,9 @@ change. It has the following responsibilities and architecture constraints:
    dependencies are vendored in a `vendor` directory.
 4. Users can customize the UI, including viewers, as they please by editing the
    code live.
+5. The mobile navigation drawer remains mounted while closed so CSS transitions
+   stay smooth. This is an intentional mobile-only accessibility tradeoff in
+   this project; treat it as accepted unless product requirements change.
 
 ## Custom User Written files
 
