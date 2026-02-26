@@ -3,6 +3,25 @@ import test from "node:test";
 import { ApiError } from "../src/api/types.ts";
 import { getWorkspaceEntryInfo } from "../src/workspace-entry-info.ts";
 
+test("uses HEAD request for metadata probe", async () => {
+  const previousFetch = globalThis.fetch;
+  let calledMethod: string | undefined;
+  globalThis.fetch = (async (_input, init) => {
+    calledMethod = init?.method;
+    return new Response("", {
+      status: 200,
+      headers: { "Content-Type": "text/plain" },
+    });
+  }) as typeof fetch;
+
+  try {
+    await getWorkspaceEntryInfo("notes");
+    assert.equal(calledMethod, "HEAD");
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
 test("detects directory from dirlist content type", async () => {
   const previousFetch = globalThis.fetch;
   globalThis.fetch = (async () => {

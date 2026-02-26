@@ -90,7 +90,7 @@ export async function getWorkspaceEntryInfo(
   path: string,
 ): Promise<WorkspaceEntryInfo> {
   const normalizedPath = normalizeWorkspacePath(path);
-  const res = await fetch(buildFsApiUrl(normalizedPath));
+  const res = await fetch(buildFsApiUrl(normalizedPath), { method: "HEAD" });
 
   if (res.status === 404) {
     return buildEntry(normalizedPath, "missing");

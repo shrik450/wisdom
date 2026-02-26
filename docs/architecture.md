@@ -41,6 +41,14 @@ is complete, which avoids partial files in the workspace on write failures.
 Only this temporary staging file is created outside the workspace, and it is
 removed on failure or after a successful rename.
 
+### Known Degradation: Path Search and Symlinks
+
+The `/api/search/paths` endpoint is path-listing based and can include symlink
+entries whose targets resolve outside the workspace root. Those entries may
+appear in command palette results but fail to open through normal filesystem
+APIs, because those APIs enforce workspace boundary checks during resolution.
+This is currently an accepted UX degradation.
+
 ## Frontend
 
 The frontend is currently a TypeScript React SPA, but the exact framework can
