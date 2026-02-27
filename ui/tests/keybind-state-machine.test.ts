@@ -350,12 +350,56 @@ test("dispatch uses mode-specific bindings", () => {
   assert.equal(result.result.type, "none");
 });
 
-test("dispatch throws when a full match references a missing action", () => {
+test("dispatch ignores full matches with missing actions", () => {
   const bindings: KeyBindingDef[] = [
     { mode: "normal", keys: "j", action: "missing" },
   ];
 
-  assert.throws(() => {
-    step(initialState(), key("j"), bindings, []);
-  }, /missing action/);
+  const result = step(initialState(), key("j"), bindings, []);
+  assert.equal(result.result.type, "none");
+});
+
+test("dispatch falls through from missing full match to resolvable one", () => {
+  const bindings: KeyBindingDef[] = [
+    { mode: "normal", keys: "j", action: "missing" },
+    { mode: "normal", keys: "j", action: "cmd.j" },
+  ];
+  const actions: ResolvedAction[] = [commandAction("cmd.j")];
+
+  const result = step(initialState(), key("j"), bindings, actions);
+  assert.equal(result.result.type, "execute-command");
+});
+
+test("dispatch ignores unresolved prefix matches", () => {
+  const bindings: KeyBindingDef[] = [
+    { mode: "normal", keys: "g g", action: "missing" },
+  ];
+
+  const result = step(initialState(), key("g"), bindings, []);
+  assert.equal(result.result.type, "none");
+  assert.deepEqual(result.nextState.pendingKeys, []);
+});
+
+test("Escape reset requests preventDefault", () => {
+  let state = initialState();
+  state = step(state, key("3"), [], []).nextState;
+
+  const result = step(state, key("Escape"), [], []);
+  assert.equal(result.result.type, "reset");
+  if (result.result.type !== "reset") {
+    throw new Error("expected reset");
+  }
+  assert.equal(result.result.preventDefault, true);
+});
+
+test("mismatch reset does not request preventDefault", () => {
+  let state = initialState();
+  state = step(state, key("3"), [], []).nextState;
+
+  const result = step(state, key("x"), [], []);
+  assert.equal(result.result.type, "reset");
+  if (result.result.type !== "reset") {
+    throw new Error("expected reset");
+  }
+  assert.equal(result.result.preventDefault, false);
 });

@@ -40,7 +40,7 @@ export interface KeybindState {
 export type DispatchResult =
   | { type: "none" }
   | { type: "pending"; preventDefault: boolean }
-  | { type: "reset" }
+  | { type: "reset"; preventDefault: boolean }
   | { type: "execute-command"; action: CommandActionSpec; count: number | null }
   | {
       type: "execute-motion";
@@ -149,10 +149,6 @@ function matchingModeBindings(
   return bindings.filter((binding) => binding.mode === currentMode);
 }
 
-function missingActionError(actionId: string): Error {
-  return new Error(`Binding references missing action "${actionId}".`);
-}
-
 function collectKindMatches(
   pending: readonly string[],
   event: KeyEventLike,
@@ -178,10 +174,7 @@ function collectKindMatches(
     }
 
     const action = actionMap.get(binding.action);
-    if (!action) {
-      throw missingActionError(binding.action);
-    }
-    if (action.kind === kind && !full) {
+    if (action?.kind === kind && !full) {
       full = { action };
     }
   }
@@ -203,7 +196,10 @@ export function dispatch(
 
   if (state.charPending) {
     if (event.key === "Escape") {
-      return { nextState: initialState(), result: { type: "reset" } };
+      return {
+        nextState: initialState(),
+        result: { type: "reset", preventDefault: true },
+      };
     }
 
     if (event.key.length === 1) {
@@ -258,7 +254,10 @@ export function dispatch(
   }
 
   if (event.key === "Escape" && hasPendingState(state)) {
-    return { nextState: initialState(), result: { type: "reset" } };
+    return {
+      nextState: initialState(),
+      result: { type: "reset", preventDefault: true },
+    };
   }
 
   const modeBindings = matchingModeBindings(bindings, currentMode);
@@ -286,7 +285,10 @@ export function dispatch(
     hasPrefix = motionMatches.hasPrefix || commandMatches.hasPrefix;
 
     if (!selectedFullMatch && !hasPrefix) {
-      return { nextState: initialState(), result: { type: "reset" } };
+      return {
+        nextState: initialState(),
+        result: { type: "reset", preventDefault: false },
+      };
     }
   } else {
     for (const binding of modeBindings) {
@@ -295,15 +297,14 @@ export function dispatch(
         continue;
       }
       if (result === "prefix") {
-        hasPrefix = true;
+        if (actionMap.has(binding.action)) {
+          hasPrefix = true;
+        }
         continue;
       }
 
       const action = actionMap.get(binding.action);
-      if (!action) {
-        throw missingActionError(binding.action);
-      }
-      if (!selectedFullMatch) {
+      if (action && !selectedFullMatch) {
         selectedFullMatch = { action };
       }
     }
@@ -396,7 +397,10 @@ export function dispatch(
     state.pendingKeys.length > 0 ||
     state.count !== null
   ) {
-    return { nextState: initialState(), result: { type: "reset" } };
+    return {
+      nextState: initialState(),
+      result: { type: "reset", preventDefault: false },
+    };
   }
 
   return { nextState: state, result: { type: "none" } };

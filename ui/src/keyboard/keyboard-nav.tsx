@@ -175,7 +175,9 @@ export function useKeyboardNav(
           }
           return;
         case "reset":
-          event.preventDefault();
+          if (result.preventDefault) {
+            event.preventDefault();
+          }
           syncState();
           clearPendingTimeout();
           return;
