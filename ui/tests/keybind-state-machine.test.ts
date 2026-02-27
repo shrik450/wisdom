@@ -8,6 +8,7 @@ import type {
 } from "../src/actions/action-model.ts";
 import {
   dispatch,
+  expirePending,
   initialState,
   type KeyBindingDef,
   type KeyEventLike,
@@ -402,4 +403,32 @@ test("mismatch reset does not request preventDefault", () => {
     throw new Error("expected reset");
   }
   assert.equal(result.result.preventDefault, false);
+});
+
+test("expirePending clears stale count when sequence times out", () => {
+  const state: KeybindState = {
+    pendingKeys: ["g"],
+    count: 2,
+    pendingOperator: null,
+    charPending: null,
+  };
+
+  const nextState = expirePending(state);
+  assert.deepEqual(nextState, initialState());
+});
+
+test("expirePending keeps char-pending state", () => {
+  const state: KeybindState = {
+    pendingKeys: [],
+    count: 1,
+    pendingOperator: null,
+    charPending: {
+      motion: motionAction("motion.find", true),
+      key: "f",
+      count: 1,
+    },
+  };
+
+  const nextState = expirePending(state);
+  assert.equal(nextState, state);
 });

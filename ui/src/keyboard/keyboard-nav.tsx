@@ -10,6 +10,7 @@ import {
 import type { ResolvedAction } from "../actions/action-model";
 import {
   dispatch,
+  expirePending,
   initialState,
   type KeyBindingDef,
   type KeybindState,
@@ -101,21 +102,9 @@ export function useKeyboardNav(
 
   const onTimeout = useCallback(() => {
     const state = stateRef.current;
-    if (state.charPending) {
-      return;
-    }
-
-    if (state.pendingOperator) {
-      stateRef.current = initialState();
-      syncState();
-      return;
-    }
-
-    if (state.pendingKeys.length > 0) {
-      stateRef.current = {
-        ...state,
-        pendingKeys: [],
-      };
+    const nextState = expirePending(state);
+    if (nextState !== state) {
+      stateRef.current = nextState;
       syncState();
     }
   }, [syncState]);

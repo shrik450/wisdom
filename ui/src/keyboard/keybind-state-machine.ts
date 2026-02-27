@@ -124,6 +124,16 @@ export function initialState(): KeybindState {
   };
 }
 
+export function expirePending(state: KeybindState): KeybindState {
+  if (state.charPending) {
+    return state;
+  }
+  if (state.pendingOperator || state.pendingKeys.length > 0) {
+    return initialState();
+  }
+  return state;
+}
+
 interface FullMatch {
   action: ResolvedAction;
 }
