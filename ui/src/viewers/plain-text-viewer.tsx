@@ -88,6 +88,7 @@ function PlainTextViewer({ path }: ViewerProps) {
 
 export const plainTextViewerRoute: ViewerRoute = {
   name: "Plain Text",
+  scope: "plain-text",
   match: (entry) =>
     entry.kind === "file" &&
     (isTextContentType(entry.contentType) ||

@@ -230,6 +230,7 @@ function DirectoryViewer({ path, entry }: ViewerProps) {
 
 export const directoryViewerRoute: ViewerRoute = {
   name: "Directory",
+  scope: "directory",
   match: (entry) => entry.kind === "directory",
   priority: 0,
   component: DirectoryViewer,

@@ -9,6 +9,7 @@ export interface KeyBindingDef {
   mode: string;
   keys: string;
   action: string;
+  scope?: string;
   description?: string;
 }
 
@@ -136,6 +137,7 @@ export function expirePending(state: KeybindState): KeybindState {
 
 interface FullMatch {
   action: ResolvedAction;
+  isScoped: boolean;
 }
 
 interface KindMatches {
@@ -152,11 +154,27 @@ function hasPendingState(state: KeybindState): boolean {
   );
 }
 
-function matchingModeBindings(
+function matchingBindings(
   bindings: readonly KeyBindingDef[],
   currentMode: string,
+  activeScope: string | null,
 ): readonly KeyBindingDef[] {
-  return bindings.filter((binding) => binding.mode === currentMode);
+  return bindings.filter((binding) => {
+    if (binding.mode !== currentMode) {
+      return false;
+    }
+    if (binding.scope === undefined) {
+      return true;
+    }
+    return binding.scope === activeScope;
+  });
+}
+
+function hasEffectivePrefixMatch(
+  scopedPrefixes: ReadonlySet<string>,
+  globalPrefixes: ReadonlySet<string>,
+): boolean {
+  return scopedPrefixes.size > 0 || globalPrefixes.size > 0;
 }
 
 function collectKindMatches(
@@ -167,7 +185,8 @@ function collectKindMatches(
   kind: ResolvedAction["kind"],
 ): KindMatches {
   let full: FullMatch | null = null;
-  let hasPrefix = false;
+  const scopedPrefixes = new Set<string>();
+  const globalPrefixes = new Set<string>();
 
   for (const binding of modeBindings) {
     const result = matchBinding(pending, event, binding);
@@ -178,18 +197,33 @@ function collectKindMatches(
     if (result === "prefix") {
       const action = actionMap.get(binding.action);
       if (action?.kind === kind) {
-        hasPrefix = true;
+        if (binding.scope === undefined) {
+          globalPrefixes.add(binding.keys);
+        } else {
+          scopedPrefixes.add(binding.keys);
+        }
       }
       continue;
     }
 
     const action = actionMap.get(binding.action);
-    if (action?.kind === kind && !full) {
-      full = { action };
+    if (action?.kind !== kind) {
+      continue;
+    }
+
+    const candidate: FullMatch = {
+      action,
+      isScoped: binding.scope !== undefined,
+    };
+    if (!full || (!full.isScoped && candidate.isScoped)) {
+      full = candidate;
     }
   }
 
-  return { full, hasPrefix };
+  return {
+    full,
+    hasPrefix: hasEffectivePrefixMatch(scopedPrefixes, globalPrefixes),
+  };
 }
 
 export function dispatch(
@@ -198,6 +232,7 @@ export function dispatch(
   bindings: readonly KeyBindingDef[],
   actionMap: ReadonlyMap<string, ResolvedAction>,
   currentMode: string,
+  activeScope: string | null,
   inputFocused: boolean,
 ): { nextState: KeybindState; result: DispatchResult } {
   if (MODIFIER_KEYS.has(event.key)) {
@@ -270,7 +305,7 @@ export function dispatch(
     };
   }
 
-  const modeBindings = matchingModeBindings(bindings, currentMode);
+  const modeBindings = matchingBindings(bindings, currentMode, activeScope);
 
   let selectedFullMatch: FullMatch | null = null;
   let hasPrefix = false;
@@ -301,6 +336,9 @@ export function dispatch(
       };
     }
   } else {
+    const scopedPrefixes = new Set<string>();
+    const globalPrefixes = new Set<string>();
+
     for (const binding of modeBindings) {
       const result = matchBinding(state.pendingKeys, event, binding);
       if (result === "none") {
@@ -308,16 +346,33 @@ export function dispatch(
       }
       if (result === "prefix") {
         if (actionMap.has(binding.action)) {
-          hasPrefix = true;
+          if (binding.scope === undefined) {
+            globalPrefixes.add(binding.keys);
+          } else {
+            scopedPrefixes.add(binding.keys);
+          }
         }
         continue;
       }
 
       const action = actionMap.get(binding.action);
-      if (action && !selectedFullMatch) {
-        selectedFullMatch = { action };
+      if (!action) {
+        continue;
+      }
+
+      const candidate: FullMatch = {
+        action,
+        isScoped: binding.scope !== undefined,
+      };
+      if (
+        !selectedFullMatch ||
+        (!selectedFullMatch.isScoped && candidate.isScoped)
+      ) {
+        selectedFullMatch = candidate;
       }
     }
+
+    hasPrefix = hasEffectivePrefixMatch(scopedPrefixes, globalPrefixes);
   }
 
   if (selectedFullMatch) {

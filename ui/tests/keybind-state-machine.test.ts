@@ -98,6 +98,7 @@ function step(
   bindings: readonly KeyBindingDef[],
   actions: readonly ResolvedAction[],
   mode = "normal",
+  activeScope: string | null = null,
   inputFocused = false,
 ) {
   return dispatch(
@@ -106,6 +107,7 @@ function step(
     bindings,
     buildActionMap(actions),
     mode,
+    activeScope,
     inputFocused,
   );
 }
@@ -168,7 +170,7 @@ test("count resets on Escape and unbound key", () => {
 });
 
 test("digits are not consumed when input is focused", () => {
-  const result = step(initialState(), key("3"), [], [], "normal", true);
+  const result = step(initialState(), key("3"), [], [], "normal", null, true);
   assert.equal(result.result.type, "none");
   assert.equal(result.nextState.count, null);
 });
@@ -349,6 +351,208 @@ test("dispatch uses mode-specific bindings", () => {
 
   const result = step(initialState(), key("j"), bindings, actions, "insert");
   assert.equal(result.result.type, "none");
+});
+
+test("dispatch filters scoped bindings by active scope", () => {
+  const bindings: KeyBindingDef[] = [
+    { mode: "normal", keys: "j", action: "cmd.j" },
+    { mode: "normal", keys: "y", action: "text.copy", scope: "plain-text" },
+  ];
+  const actions: ResolvedAction[] = [
+    commandAction("cmd.j"),
+    commandAction("text.copy"),
+  ];
+
+  let result = step(
+    initialState(),
+    key("y"),
+    bindings,
+    actions,
+    "normal",
+    "directory",
+  );
+  assert.equal(result.result.type, "none");
+
+  result = step(
+    initialState(),
+    key("y"),
+    bindings,
+    actions,
+    "normal",
+    "plain-text",
+  );
+  assert.equal(result.result.type, "execute-command");
+  if (result.result.type !== "execute-command") {
+    throw new Error("expected execute-command");
+  }
+  assert.equal(result.result.action.id, "text.copy");
+
+  result = step(
+    initialState(),
+    key("j"),
+    bindings,
+    actions,
+    "normal",
+    "plain-text",
+  );
+  assert.equal(result.result.type, "execute-command");
+  if (result.result.type !== "execute-command") {
+    throw new Error("expected execute-command");
+  }
+  assert.equal(result.result.action.id, "cmd.j");
+});
+
+test("scoped prefix does not create pending state outside its scope", () => {
+  const bindings: KeyBindingDef[] = [
+    { mode: "normal", keys: "g g", action: "scoped.gg", scope: "directory" },
+  ];
+  const actions: ResolvedAction[] = [commandAction("scoped.gg")];
+
+  const result = step(
+    initialState(),
+    key("g"),
+    bindings,
+    actions,
+    "normal",
+    "plain-text",
+  );
+  assert.equal(result.result.type, "none");
+  assert.deepEqual(result.nextState.pendingKeys, []);
+});
+
+test("scoped same-sequence prefix resolves scoped action over global", () => {
+  const bindings: KeyBindingDef[] = [
+    { mode: "normal", keys: "g g", action: "global.gg" },
+    { mode: "normal", keys: "g g", action: "scoped.gg", scope: "directory" },
+    { mode: "normal", keys: "g x", action: "global.gx" },
+  ];
+  const actions: ResolvedAction[] = [
+    commandAction("global.gg"),
+    commandAction("scoped.gg"),
+    commandAction("global.gx"),
+  ];
+
+  let state = initialState();
+  let result = step(state, key("g"), bindings, actions, "normal", "directory");
+  assert.equal(result.result.type, "pending");
+  state = result.nextState;
+
+  result = step(state, key("g"), bindings, actions, "normal", "directory");
+  assert.equal(result.result.type, "execute-command");
+  if (result.result.type !== "execute-command") {
+    throw new Error("expected execute-command");
+  }
+  assert.equal(result.result.action.id, "scoped.gg");
+
+  state = initialState();
+  result = step(state, key("g"), bindings, actions, "normal", "directory");
+  assert.equal(result.result.type, "pending");
+  state = result.nextState;
+
+  result = step(state, key("x"), bindings, actions, "normal", "directory");
+  assert.equal(result.result.type, "execute-command");
+  if (result.result.type !== "execute-command") {
+    throw new Error("expected execute-command");
+  }
+  assert.equal(result.result.action.id, "global.gx");
+});
+
+test("operator-pending motion matching respects scope", () => {
+  const bindings: KeyBindingDef[] = [
+    { mode: "normal", keys: "d", action: "op.d" },
+    { mode: "normal", keys: "j", action: "motion.j", scope: "directory" },
+  ];
+  const actions: ResolvedAction[] = [
+    operatorAction("op.d"),
+    motionAction("motion.j"),
+  ];
+
+  let state = initialState();
+  state = step(
+    state,
+    key("d"),
+    bindings,
+    actions,
+    "normal",
+    "directory",
+  ).nextState;
+  let result = step(state, key("j"), bindings, actions, "normal", "directory");
+  assert.equal(result.result.type, "execute-operator-motion");
+  if (result.result.type !== "execute-operator-motion") {
+    throw new Error("expected execute-operator-motion");
+  }
+  assert.equal(result.result.motion.id, "motion.j");
+
+  state = initialState();
+  state = step(
+    state,
+    key("d"),
+    bindings,
+    actions,
+    "normal",
+    "plain-text",
+  ).nextState;
+  result = step(state, key("j"), bindings, actions, "normal", "plain-text");
+  assert.equal(result.result.type, "reset");
+});
+
+test("scoped full match shadows global full match", () => {
+  const bindings: KeyBindingDef[] = [
+    { mode: "insert", keys: "Escape", action: "app.blur" },
+    {
+      mode: "insert",
+      keys: "Escape",
+      action: "palette.close",
+      scope: "palette",
+    },
+  ];
+  const actions: ResolvedAction[] = [
+    commandAction("app.blur"),
+    commandAction("palette.close"),
+  ];
+
+  let result = step(
+    initialState(),
+    key("Escape"),
+    bindings,
+    actions,
+    "insert",
+    "palette",
+  );
+  assert.equal(result.result.type, "execute-command");
+  if (result.result.type !== "execute-command") {
+    throw new Error("expected execute-command");
+  }
+  assert.equal(result.result.action.id, "palette.close");
+
+  result = step(initialState(), key("Escape"), bindings, actions, "insert");
+  assert.equal(result.result.type, "execute-command");
+  if (result.result.type !== "execute-command") {
+    throw new Error("expected execute-command");
+  }
+  assert.equal(result.result.action.id, "app.blur");
+});
+
+test("scoped prefixes do not suppress unrelated global prefixes", () => {
+  const bindings: KeyBindingDef[] = [
+    { mode: "normal", keys: "g g", action: "scoped.gg", scope: "directory" },
+    { mode: "normal", keys: "Space f", action: "global.fullscreen" },
+  ];
+  const actions: ResolvedAction[] = [
+    commandAction("scoped.gg"),
+    commandAction("global.fullscreen"),
+  ];
+
+  const result = step(
+    initialState(),
+    key(" "),
+    bindings,
+    actions,
+    "normal",
+    "directory",
+  );
+  assert.equal(result.result.type, "pending");
+  assert.deepEqual(result.nextState.pendingKeys, ["Space"]);
 });
 
 test("dispatch ignores full matches with missing actions", () => {

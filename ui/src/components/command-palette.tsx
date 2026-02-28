@@ -12,7 +12,6 @@ import { buildWorkspaceHref } from "../path-utils";
 import { type ResolvedAction } from "../actions/action-model";
 import { useActions, type ActionSpec } from "../actions/action-registry";
 import { useKeyboardNavContext } from "../keyboard/keyboard-nav";
-import type { KeyBindingDef } from "../keyboard/keybind-state-machine";
 
 const DEBOUNCE_MS = 150;
 const SEARCH_LIMIT = 20;
@@ -181,12 +180,12 @@ export function CommandPalette({
     [onClose],
   );
 
-  const { pushMode, popMode } = useKeyboardNavContext();
+  const { setOverlayScope } = useKeyboardNavContext();
 
   useEffect(() => {
-    pushMode("palette");
-    return () => popMode();
-  }, [pushMode, popMode]);
+    setOverlayScope("palette");
+    return () => setOverlayScope(null);
+  }, [setOverlayScope]);
 
   const paletteActions = useMemo<readonly ActionSpec[]>(
     () => [
@@ -337,10 +336,3 @@ export function CommandPalette({
     </div>
   );
 }
-
-export const defaultKeybinds: KeyBindingDef[] = [
-  { mode: "palette", keys: "ArrowDown", action: "palette.next" },
-  { mode: "palette", keys: "ArrowUp", action: "palette.prev" },
-  { mode: "palette", keys: "Enter", action: "palette.select" },
-  { mode: "palette", keys: "Escape", action: "palette.close" },
-];

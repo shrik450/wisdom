@@ -18,10 +18,13 @@ import {
 
 export interface KeyboardNavContextValue {
   mode: string;
+  activeScope: string | null;
   pendingKeys: readonly string[];
   count: number | null;
   pendingOperatorKey: string | null;
   charPendingKey: string | null;
+  setViewerScope: (scope: string | null) => void;
+  setOverlayScope: (scope: string | null) => void;
   pushMode: (mode: string) => void;
   popMode: () => void;
 }
@@ -67,9 +70,12 @@ export function useKeyboardNav(
   resolvedActions: readonly ResolvedAction[],
 ): { contextValue: KeyboardNavContextValue } {
   const modeStackRef = useRef<string[]>([]);
+  const viewerScopeRef = useRef<string | null>(null);
+  const overlayScopeRef = useRef<string | null>(null);
   const stateRef = useRef<KeybindState>(initialState());
   const timeoutRef = useRef<number>(0);
   const [mode, setMode] = useState("normal");
+  const [activeScope, setActiveScope] = useState<string | null>(null);
   const [pendingKeys, setPendingKeys] = useState<readonly string[]>([]);
   const [count, setCount] = useState<number | null>(null);
   const [pendingOperatorKey, setPendingOperatorKey] = useState<string | null>(
@@ -86,14 +92,19 @@ export function useKeyboardNav(
     actionMapRef.current = map;
   }, [resolvedActions]);
 
+  const getActiveScope = useCallback((): string | null => {
+    return overlayScopeRef.current ?? viewerScopeRef.current;
+  }, []);
+
   const syncState = useCallback(() => {
     setMode(effectiveMode(modeStackRef.current));
+    setActiveScope(getActiveScope());
     const state = stateRef.current;
     setPendingKeys([...state.pendingKeys]);
     setCount(state.count);
     setPendingOperatorKey(state.pendingOperator?.key ?? null);
     setCharPendingKey(state.charPending?.key ?? null);
-  }, []);
+  }, [getActiveScope]);
 
   const clearPendingTimeout = useCallback(() => {
     window.clearTimeout(timeoutRef.current);
@@ -133,6 +144,28 @@ export function useKeyboardNav(
     clearPending();
   }, [clearPending]);
 
+  const setViewerScope = useCallback(
+    (scope: string | null) => {
+      if (viewerScopeRef.current === scope) {
+        return;
+      }
+      viewerScopeRef.current = scope;
+      clearPending();
+    },
+    [clearPending],
+  );
+
+  const setOverlayScope = useCallback(
+    (scope: string | null) => {
+      if (overlayScopeRef.current === scope) {
+        return;
+      }
+      overlayScopeRef.current = scope;
+      clearPending();
+    },
+    [clearPending],
+  );
+
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       const currentMode = effectiveMode(modeStackRef.current);
@@ -142,6 +175,7 @@ export function useKeyboardNav(
         bindings,
         actionMapRef.current,
         currentMode,
+        getActiveScope(),
         isInputFocused(),
       );
       stateRef.current = nextState;
@@ -196,7 +230,7 @@ export function useKeyboardNav(
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [bindings, clearPendingTimeout, resetTimeout, syncState]);
+  }, [bindings, clearPendingTimeout, getActiveScope, resetTimeout, syncState]);
 
   useEffect(() => {
     const onFocusChange = () => setMode(effectiveMode(modeStackRef.current));
@@ -211,14 +245,18 @@ export function useKeyboardNav(
   const contextValue = useMemo<KeyboardNavContextValue>(
     () => ({
       mode,
+      activeScope,
       pendingKeys,
       count,
       pendingOperatorKey,
       charPendingKey,
+      setViewerScope,
+      setOverlayScope,
       pushMode,
       popMode,
     }),
     [
+      activeScope,
       charPendingKey,
       count,
       mode,
@@ -226,6 +264,8 @@ export function useKeyboardNav(
       pendingOperatorKey,
       popMode,
       pushMode,
+      setOverlayScope,
+      setViewerScope,
     ],
   );
 
