@@ -14,6 +14,7 @@ export interface ViewerProps {
 // (e.g. a markdown viewer at high priority for journal/ paths, lower for all .md).
 export interface ViewerRoute {
   name: string;
+  scope: string;
   match: (entry: WorkspaceEntryInfo) => boolean;
   priority: number;
   component: ComponentType<ViewerProps>;

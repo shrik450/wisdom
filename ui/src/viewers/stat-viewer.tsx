@@ -68,6 +68,7 @@ function StatViewer({ entry }: ViewerProps) {
 // and anything else that falls through.
 export const statViewerRoute: ViewerRoute = {
   name: "File Info",
+  scope: "stat",
   match: () => true,
   priority: -1000,
   component: StatViewer,

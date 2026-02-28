@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useActions } from "../actions/action-registry";
 import { useWorkspaceEntryInfo } from "../hooks/use-workspace-entry-info";
+import { useKeyboardNavContext } from "../keyboard/keyboard-nav";
 import { resolveAllViewers, resolveViewer } from "../viewers/registry";
 import type { ActionSpec } from "../actions/action-registry";
 
 export function WorkspaceView() {
   const { path, data: entry, loading, error } = useWorkspaceEntryInfo();
+  const { setViewerScope } = useKeyboardNavContext();
   const [viewerOverride, setViewerOverride] = useState<string | null>(null);
 
   useEffect(() => {
@@ -26,15 +28,25 @@ export function WorkspaceView() {
     (viewerOverride
       ? allViewers.find((v) => v.name === viewerOverride)
       : null) ?? defaultViewer;
+  const activeViewerScope = activeViewer?.scope ?? null;
+
+  useEffect(() => {
+    setViewerScope(activeViewerScope);
+    return () => setViewerScope(null);
+  }, [activeViewerScope, setViewerScope]);
 
   const viewerActions: ActionSpec[] = useMemo(() => {
     if (allViewers.length < 2) return [];
     return allViewers
       .filter((route) => route.component !== activeViewer?.component)
       .map((route, index) => ({
+        kind: "command" as const,
         id: `shell.view-as.${index}`,
         label: `View as ${route.name}`,
-        onSelect: () => setViewerOverride(route.name),
+        onSelect: (count: number | null) => {
+          void count;
+          setViewerOverride(route.name);
+        },
         priority: -50,
         headerDisplay: "overflow",
       }));

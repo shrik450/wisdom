@@ -263,18 +263,24 @@ function Breadcrumbs() {
   const breadcrumbActions = useMemo<ActionSpec[]>(() => {
     const actions: ActionSpec[] = [
       {
+        kind: "command",
         id: "app.create",
         label: "Create",
-        onSelect: openComposer,
+        onSelect: (count) => {
+          void count;
+          openComposer();
+        },
         disabled: entryInfoLoading || createPending || deletePending,
       },
     ];
 
     if (canDeleteCurrentEntry) {
       actions.push({
+        kind: "command",
         id: SHELL_DELETE_ACTION_ID,
         label: deletePending ? "Deleting..." : "Delete",
-        onSelect: () => {
+        onSelect: (count) => {
+          void count;
           void submitDelete();
         },
         headerDisplay: "overflow",
@@ -550,7 +556,7 @@ function ShellHeaderActionButton({
 }
 
 interface ShellHeaderActionsProps {
-  actions: readonly ResolvedAction[];
+  actions: readonly Extract<ResolvedAction, { kind: "command" }>[];
   routeKey: string;
   mobile: boolean;
 }
@@ -579,10 +585,13 @@ function ShellHeaderActions({
     });
   }, [actions, buttonWidths, containerWidth, mobile, overflowButtonWidth]);
 
-  const handleActionSelect = useCallback((action: ResolvedAction) => {
-    action.onSelect();
-    setMenuOpen(false);
-  }, []);
+  const handleActionSelect = useCallback(
+    (action: Extract<ResolvedAction, { kind: "command" }>) => {
+      action.onSelect(null);
+      setMenuOpen(false);
+    },
+    [],
+  );
 
   useEffect(() => {
     setMenuOpen(false);
@@ -845,11 +854,15 @@ export function Shell({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const allActions = useResolvedActions();
   const { contextValue: keyboardNav } = useKeyboardNav(keybinds, allActions);
-  const headerActions = useMemo(() => {
+  const { popMode } = keyboardNav;
+  const headerActions = useMemo<
+    readonly Extract<ResolvedAction, { kind: "command" }>[]
+  >(() => {
     return allActions.filter(
-      (action) =>
-        action.headerDisplay === "inline" ||
-        action.headerDisplay === "overflow",
+      (action): action is Extract<ResolvedAction, { kind: "command" }> =>
+        action.kind === "command" &&
+        (action.headerDisplay === "inline" ||
+          action.headerDisplay === "overflow"),
     );
   }, [allActions]);
 
@@ -895,45 +908,59 @@ export function Shell({ children }: { children: ReactNode }) {
     dispatch({ type: "CLOSE_SIDEBAR" });
   }, []);
 
-  const shellViewActions = useMemo(
+  const shellViewActions = useMemo<readonly ActionSpec[]>(
     () => [
       {
+        kind: "command",
         id: "app.toggle-fullscreen",
         label: state.fullscreen ? "Exit Fullscreen" : "Enter Fullscreen",
-        onSelect: toggleFullscreen,
+        onSelect: (count) => {
+          void count;
+          toggleFullscreen();
+        },
       },
       {
+        kind: "command",
         id: "app.toggle-sidebar",
         label: "Toggle Sidebar",
-        onSelect: toggleSidebar,
+        onSelect: (count) => {
+          void count;
+          toggleSidebar();
+        },
       },
       {
+        kind: "command",
         id: "app.open-palette",
         label: "Open Palette",
-        onSelect: openPalette,
+        onSelect: (count) => {
+          void count;
+          openPalette();
+        },
         headerDisplay: "palette-only" as const,
       },
       {
+        kind: "command",
         id: "app.blur",
         label: "Blur",
         // document.activeElement is Element | null; blur() is on HTMLElement
-        onSelect: () => (document.activeElement as HTMLElement | null)?.blur(),
+        onSelect: (count) => {
+          void count;
+          (document.activeElement as HTMLElement | null)?.blur();
+        },
         headerDisplay: "palette-only" as const,
       },
       {
+        kind: "command",
         id: "app.enter-normal",
         label: "Enter Normal Mode",
-        onSelect: keyboardNav.popMode,
+        onSelect: (count) => {
+          void count;
+          popMode();
+        },
         headerDisplay: "palette-only" as const,
       },
     ],
-    [
-      state.fullscreen,
-      toggleFullscreen,
-      toggleSidebar,
-      openPalette,
-      keyboardNav.popMode,
-    ],
+    [state.fullscreen, toggleFullscreen, toggleSidebar, openPalette, popMode],
   );
 
   useActions(shellViewActions);

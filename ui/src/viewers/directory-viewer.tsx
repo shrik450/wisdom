@@ -61,66 +61,94 @@ function DirectoryViewer({ path, entry }: ViewerProps) {
     [entries.length],
   );
 
-  const moveDown = useCallback(() => {
-    setSelected((i) => clampIndex(i + 1));
-  }, [clampIndex]);
+  const moveDown = useCallback(
+    (count: number | null) => {
+      setSelected((i) => clampIndex(i + (count ?? 1)));
+    },
+    [clampIndex],
+  );
 
-  const moveUp = useCallback(() => {
-    setSelected((i) => clampIndex(i - 1));
-  }, [clampIndex]);
+  const moveUp = useCallback(
+    (count: number | null) => {
+      setSelected((i) => clampIndex(i - (count ?? 1)));
+    },
+    [clampIndex],
+  );
 
-  const jumpFirst = useCallback(() => {
-    setSelected(0);
-  }, []);
+  const jumpFirst = useCallback(
+    (count: number | null) => {
+      setSelected(count !== null ? clampIndex(count - 1) : 0);
+    },
+    [clampIndex],
+  );
 
-  const jumpLast = useCallback(() => {
-    setSelected(clampIndex(Infinity));
-  }, [clampIndex]);
+  const jumpLast = useCallback(
+    (count: number | null) => {
+      setSelected(
+        count !== null ? clampIndex(count - 1) : clampIndex(Infinity),
+      );
+    },
+    [clampIndex],
+  );
 
-  const openSelected = useCallback(() => {
-    const target = entries[selected];
-    if (!target) return;
-    navigate(buildWorkspaceHref(joinWorkspacePath(path, target.name)));
-  }, [entries, selected, navigate, path]);
+  const openSelected = useCallback(
+    (count: number | null) => {
+      void count;
+      const target = entries[selected];
+      if (!target) return;
+      navigate(buildWorkspaceHref(joinWorkspacePath(path, target.name)));
+    },
+    [entries, selected, navigate, path],
+  );
 
-  const goParent = useCallback(() => {
-    navigate(buildWorkspaceHref(entry.parentPath));
-  }, [navigate, entry.parentPath]);
+  const goParent = useCallback(
+    (count: number | null) => {
+      void count;
+      navigate(buildWorkspaceHref(entry.parentPath));
+    },
+    [navigate, entry.parentPath],
+  );
 
   useActions(
     useMemo(
       () => [
         {
+          kind: "command",
           id: "dir.move-down",
           label: "Next Entry",
           onSelect: moveDown,
           headerDisplay: "palette-only" as const,
         },
         {
+          kind: "command",
           id: "dir.move-up",
           label: "Previous Entry",
           onSelect: moveUp,
           headerDisplay: "palette-only" as const,
         },
         {
+          kind: "command",
           id: "dir.open",
           label: "Open Entry",
           onSelect: openSelected,
           headerDisplay: "palette-only" as const,
         },
         {
+          kind: "command",
           id: "dir.parent",
           label: "Go to Parent",
           onSelect: goParent,
           headerDisplay: "palette-only" as const,
         },
         {
+          kind: "command",
           id: "dir.first",
           label: "Jump to First",
           onSelect: jumpFirst,
           headerDisplay: "palette-only" as const,
         },
         {
+          kind: "command",
           id: "dir.last",
           label: "Jump to Last",
           onSelect: jumpLast,
@@ -202,6 +230,7 @@ function DirectoryViewer({ path, entry }: ViewerProps) {
 
 export const directoryViewerRoute: ViewerRoute = {
   name: "Directory",
+  scope: "directory",
   match: (entry) => entry.kind === "directory",
   priority: 0,
   component: DirectoryViewer,

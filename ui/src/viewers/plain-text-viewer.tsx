@@ -46,16 +46,21 @@ function isLikelyTextFallback(
 function PlainTextViewer({ path }: ViewerProps) {
   const { data, loading, error } = useFileContent(path);
 
-  const copyContent = useCallback(() => {
-    if (data) {
-      void navigator.clipboard.writeText(data);
-    }
-  }, [data]);
+  const copyContent = useCallback(
+    (count: number | null) => {
+      void count;
+      if (data) {
+        void navigator.clipboard.writeText(data);
+      }
+    },
+    [data],
+  );
 
   useActions(
     useMemo(
       () => [
         {
+          kind: "command",
           id: "text.copy",
           label: "Copy File Content",
           onSelect: copyContent,
@@ -83,6 +88,7 @@ function PlainTextViewer({ path }: ViewerProps) {
 
 export const plainTextViewerRoute: ViewerRoute = {
   name: "Plain Text",
+  scope: "plain-text",
   match: (entry) =>
     entry.kind === "file" &&
     (isTextContentType(entry.contentType) ||

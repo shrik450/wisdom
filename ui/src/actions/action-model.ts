@@ -1,13 +1,33 @@
 export type ActionHeaderDisplay = "inline" | "overflow" | "palette-only";
 
-export interface ActionSpec {
+export interface ActionBase {
   id: string;
   label: string;
-  onSelect: () => void;
   priority?: number;
   headerDisplay?: ActionHeaderDisplay;
   disabled?: boolean;
 }
+
+export interface CommandActionSpec extends ActionBase {
+  kind: "command";
+  onSelect: (count: number | null) => void;
+}
+
+export interface MotionActionSpec extends ActionBase {
+  kind: "motion";
+  range: (count: number | null, char?: string) => { from: number; to: number };
+  awaitChar?: boolean;
+}
+
+export interface OperatorActionSpec extends ActionBase {
+  kind: "operator";
+  apply: (range: { from: number; to: number }) => void;
+}
+
+export type ActionSpec =
+  | CommandActionSpec
+  | MotionActionSpec
+  | OperatorActionSpec;
 
 export interface ActionContributor {
   contributorId: number;
@@ -20,11 +40,11 @@ export interface ActionRegistryState {
   nextRegistrationOrder: number;
 }
 
-export interface ResolvedAction extends ActionSpec {
+export type ResolvedAction = ActionSpec & {
   priority: number;
   registrationOrder: number;
   actionOrder: number;
-}
+};
 
 function normalizedPriority(priority: number | undefined): number {
   if (priority === undefined) {
@@ -64,8 +84,35 @@ function areActionsEqual(
     if (left.disabled !== right.disabled) {
       return false;
     }
-    if (left.onSelect !== right.onSelect) {
+    if (left.kind !== right.kind) {
       return false;
+    }
+
+    switch (left.kind) {
+      case "command": {
+        const rightCommand = right as CommandActionSpec;
+        if (left.onSelect !== rightCommand.onSelect) {
+          return false;
+        }
+        break;
+      }
+      case "motion": {
+        const rightMotion = right as MotionActionSpec;
+        if (left.range !== rightMotion.range) {
+          return false;
+        }
+        if (left.awaitChar !== rightMotion.awaitChar) {
+          return false;
+        }
+        break;
+      }
+      case "operator": {
+        const rightOperator = right as OperatorActionSpec;
+        if (left.apply !== rightOperator.apply) {
+          return false;
+        }
+        break;
+      }
     }
   }
 

@@ -46,6 +46,7 @@ test("resolveViewer returns the only matching route", () => {
   const component = stubComponent("A");
   registerViewer({
     name: "A",
+    scope: "a",
     match: () => true,
     priority: 0,
     component,
@@ -61,12 +62,14 @@ test("resolveViewer returns highest priority match", () => {
 
   registerViewer({
     name: "Low",
+    scope: "low",
     match: () => true,
     priority: 0,
     component: low,
   });
   registerViewer({
     name: "High",
+    scope: "high",
     match: () => true,
     priority: 10,
     component: high,
@@ -82,12 +85,14 @@ test("resolveViewer breaks ties by registration order", () => {
 
   registerViewer({
     name: "First",
+    scope: "first",
     match: () => true,
     priority: 5,
     component: first,
   });
   registerViewer({
     name: "Second",
+    scope: "second",
     match: () => true,
     priority: 5,
     component: second,
@@ -103,12 +108,14 @@ test("resolveViewer skips non-matching routes", () => {
 
   registerViewer({
     name: "Never",
+    scope: "never",
     match: () => false,
     priority: 100,
     component: never,
   });
   registerViewer({
     name: "Always",
+    scope: "always",
     match: () => true,
     priority: 0,
     component: always,
@@ -122,6 +129,7 @@ test("resolveViewer passes entry to match predicate", () => {
   const component = stubComponent("DirOnly");
   registerViewer({
     name: "DirOnly",
+    scope: "dir",
     match: (e) => e.kind === "directory",
     priority: 0,
     component,
@@ -137,6 +145,7 @@ test("resolveViewer passes entry to match predicate", () => {
 test("resolveAllViewers returns empty array when nothing matches", () => {
   registerViewer({
     name: "Never",
+    scope: "never",
     match: () => false,
     priority: 0,
     component: stubComponent("Never"),
@@ -149,8 +158,20 @@ test("resolveAllViewers returns all matches sorted by priority", () => {
   const a = stubComponent("A");
   const b = stubComponent("B");
 
-  registerViewer({ name: "A", match: () => true, priority: 5, component: a });
-  registerViewer({ name: "B", match: () => true, priority: 10, component: b });
+  registerViewer({
+    name: "A",
+    scope: "a",
+    match: () => true,
+    priority: 5,
+    component: a,
+  });
+  registerViewer({
+    name: "B",
+    scope: "b",
+    match: () => true,
+    priority: 10,
+    component: b,
+  });
 
   const results = resolveAllViewers(entry());
   assert.equal(results.length, 2);
@@ -163,12 +184,14 @@ test("resolveAllViewers dedupes by component reference", () => {
 
   registerViewer({
     name: "Shared",
+    scope: "shared-high",
     match: () => true,
     priority: 10,
     component: shared,
   });
   registerViewer({
     name: "Shared",
+    scope: "shared-low",
     match: () => true,
     priority: 5,
     component: shared,
@@ -184,12 +207,14 @@ test("resolveAllViewers keeps first route when deduping same component", () => {
 
   registerViewer({
     name: "Shared High",
+    scope: "shared-high",
     match: () => true,
     priority: 20,
     component: shared,
   });
   registerViewer({
     name: "Shared Low",
+    scope: "shared-low",
     match: () => true,
     priority: 1,
     component: shared,
@@ -207,18 +232,21 @@ test("resolveAllViewers[0] can differ from resolveViewer when component has mult
 
   registerViewer({
     name: "Multi Low",
+    scope: "multi-low",
     match: () => true,
     priority: 1,
     component: multi,
   });
   registerViewer({
     name: "Other",
+    scope: "other",
     match: () => true,
     priority: 5,
     component: other,
   });
   registerViewer({
     name: "Multi High",
+    scope: "multi-high",
     match: () => true,
     priority: 10,
     component: multi,

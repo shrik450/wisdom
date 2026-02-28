@@ -9,7 +9,20 @@ import {
   upsertActionContributor,
 } from "../src/actions/action-model.ts";
 
-const noop = () => {};
+const noop = (count: number | null) => {
+  void count;
+};
+const noopMotion = (count: number | null, char?: string) => {
+  void count;
+  void char;
+  return {
+    from: 0,
+    to: 0,
+  };
+};
+const noopOperator = (range: { from: number; to: number }) => {
+  void range;
+};
 
 function resolveFromContributors(contributors: readonly ActionContributor[]) {
   return resolveActions(contributors);
@@ -22,6 +35,7 @@ test("resolveActions throws on duplicate action IDs", () => {
       registrationOrder: 0,
       actions: [
         {
+          kind: "command",
           id: "open",
           label: "Open",
           onSelect: noop,
@@ -33,6 +47,7 @@ test("resolveActions throws on duplicate action IDs", () => {
       registrationOrder: 1,
       actions: [
         {
+          kind: "command",
           id: "open",
           label: "Open Again",
           onSelect: noop,
@@ -51,6 +66,7 @@ test("upsertActionContributor keeps registration order on updates", () => {
   const initial = createActionRegistryState();
   const first = upsertActionContributor(initial, 11, [
     {
+      kind: "command",
       id: "first",
       label: "First",
       onSelect: noop,
@@ -58,6 +74,7 @@ test("upsertActionContributor keeps registration order on updates", () => {
   ]);
   const second = upsertActionContributor(first, 22, [
     {
+      kind: "command",
       id: "second",
       label: "Second",
       onSelect: noop,
@@ -65,6 +82,7 @@ test("upsertActionContributor keeps registration order on updates", () => {
   ]);
   const updated = upsertActionContributor(second, 11, [
     {
+      kind: "command",
       id: "first",
       label: "First Updated",
       onSelect: noop,
@@ -86,6 +104,7 @@ test("upsertActionContributor returns same state for equivalent actions", () => 
   const initial = createActionRegistryState();
   const withContributor = upsertActionContributor(initial, 11, [
     {
+      kind: "command",
       id: "first",
       label: "First",
       onSelect: noop,
@@ -95,6 +114,7 @@ test("upsertActionContributor returns same state for equivalent actions", () => 
 
   const equivalent = upsertActionContributor(withContributor, 11, [
     {
+      kind: "command",
       id: "first",
       label: "First",
       onSelect: noop,
@@ -105,10 +125,90 @@ test("upsertActionContributor returns same state for equivalent actions", () => 
   assert.equal(equivalent, withContributor);
 });
 
+test("upsertActionContributor returns new state when motion awaitChar changes", () => {
+  const initial = createActionRegistryState();
+  const withMotion = upsertActionContributor(initial, 11, [
+    {
+      kind: "motion",
+      id: "move",
+      label: "Move",
+      range: noopMotion,
+      awaitChar: false,
+    },
+  ]);
+
+  const updated = upsertActionContributor(withMotion, 11, [
+    {
+      kind: "motion",
+      id: "move",
+      label: "Move",
+      range: noopMotion,
+      awaitChar: true,
+    },
+  ]);
+
+  assert.notEqual(updated, withMotion);
+});
+
+test("resolveActions preserves motion and operator kinds", () => {
+  const resolved = resolveFromContributors([
+    {
+      contributorId: 1,
+      registrationOrder: 0,
+      actions: [
+        {
+          kind: "motion",
+          id: "motion.w",
+          label: "Next Word",
+          range: noopMotion,
+        },
+        {
+          kind: "operator",
+          id: "op.delete",
+          label: "Delete",
+          apply: noopOperator,
+        },
+      ],
+    },
+  ]);
+
+  assert.equal(resolved[0].kind, "motion");
+  assert.equal(resolved[1].kind, "operator");
+});
+
+test("command action handler accepts null count", () => {
+  let received: number | null | undefined;
+  const resolved = resolveFromContributors([
+    {
+      contributorId: 1,
+      registrationOrder: 0,
+      actions: [
+        {
+          kind: "command",
+          id: "cmd",
+          label: "Command",
+          onSelect: (count) => {
+            received = count;
+          },
+        },
+      ],
+    },
+  ]);
+
+  const action = resolved[0];
+  if (action.kind !== "command") {
+    throw new Error("expected command action");
+  }
+
+  action.onSelect(null);
+  assert.equal(received, null);
+});
+
 test("removeActionContributor removes contributor and is idempotent", () => {
   const initial = createActionRegistryState();
   const withContributor = upsertActionContributor(initial, 11, [
     {
+      kind: "command",
       id: "first",
       label: "First",
       onSelect: noop,
@@ -129,6 +229,7 @@ test("resolveActions orders by priority then registration order", () => {
       registrationOrder: 1,
       actions: [
         {
+          kind: "command",
           id: "global-low",
           label: "Global Low",
           onSelect: noop,
@@ -141,12 +242,14 @@ test("resolveActions orders by priority then registration order", () => {
       registrationOrder: 0,
       actions: [
         {
+          kind: "command",
           id: "view-high",
           label: "View High",
           onSelect: noop,
           priority: 8,
         },
         {
+          kind: "command",
           id: "view-mid",
           label: "View Mid",
           onSelect: noop,
@@ -169,6 +272,7 @@ test("partitionHeaderActions keeps overflow-only actions out of inline slot", ()
       registrationOrder: 0,
       actions: [
         {
+          kind: "command",
           id: "must-overflow",
           label: "Must Overflow",
           onSelect: noop,
@@ -176,6 +280,7 @@ test("partitionHeaderActions keeps overflow-only actions out of inline slot", ()
           headerDisplay: "overflow",
         },
         {
+          kind: "command",
           id: "inline-a",
           label: "Inline A",
           onSelect: noop,
@@ -183,6 +288,7 @@ test("partitionHeaderActions keeps overflow-only actions out of inline slot", ()
           headerDisplay: "inline",
         },
         {
+          kind: "command",
           id: "inline-b",
           label: "Inline B",
           onSelect: noop,
@@ -219,6 +325,7 @@ test("partitionHeaderActions shows one inline action on mobile", () => {
       registrationOrder: 0,
       actions: [
         {
+          kind: "command",
           id: "top-action",
           label: "Top Action",
           onSelect: noop,
@@ -226,6 +333,7 @@ test("partitionHeaderActions shows one inline action on mobile", () => {
           headerDisplay: "inline",
         },
         {
+          kind: "command",
           id: "later-action",
           label: "Later Action",
           onSelect: noop,
@@ -262,6 +370,7 @@ test("partitionHeaderActions overflows remaining actions when width is limited",
       registrationOrder: 0,
       actions: [
         {
+          kind: "command",
           id: "a",
           label: "A",
           onSelect: noop,
@@ -269,6 +378,7 @@ test("partitionHeaderActions overflows remaining actions when width is limited",
           headerDisplay: "inline",
         },
         {
+          kind: "command",
           id: "b",
           label: "B",
           onSelect: noop,
@@ -276,6 +386,7 @@ test("partitionHeaderActions overflows remaining actions when width is limited",
           headerDisplay: "inline",
         },
         {
+          kind: "command",
           id: "c",
           label: "C",
           onSelect: noop,
