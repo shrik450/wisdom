@@ -533,6 +533,43 @@ test("scoped full match shadows global full match", () => {
   assert.equal(result.result.action.id, "app.blur");
 });
 
+test("normal-mode scoped Escape closes palette as an escape hatch", () => {
+  const bindings: KeyBindingDef[] = [
+    { mode: "normal", keys: "Escape", action: "app.escape" },
+    {
+      mode: "normal",
+      keys: "Escape",
+      action: "palette.close",
+      scope: "palette",
+    },
+  ];
+  const actions: ResolvedAction[] = [
+    commandAction("app.escape"),
+    commandAction("palette.close"),
+  ];
+
+  let result = step(
+    initialState(),
+    key("Escape"),
+    bindings,
+    actions,
+    "normal",
+    "palette",
+  );
+  assert.equal(result.result.type, "execute-command");
+  if (result.result.type !== "execute-command") {
+    throw new Error("expected execute-command");
+  }
+  assert.equal(result.result.action.id, "palette.close");
+
+  result = step(initialState(), key("Escape"), bindings, actions, "normal");
+  assert.equal(result.result.type, "execute-command");
+  if (result.result.type !== "execute-command") {
+    throw new Error("expected execute-command");
+  }
+  assert.equal(result.result.action.id, "app.escape");
+});
+
 test("scoped prefixes do not suppress unrelated global prefixes", () => {
   const bindings: KeyBindingDef[] = [
     { mode: "normal", keys: "g g", action: "scoped.gg", scope: "directory" },

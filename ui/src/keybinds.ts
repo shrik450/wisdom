@@ -25,6 +25,12 @@ export const keybinds: KeyBindingDef[] = [
   { mode: "visual", keys: "Escape", action: "app.enter-normal" },
 
   // -- Palette defaults --
+  {
+    mode: "normal",
+    keys: "Escape",
+    action: "palette.close",
+    scope: "palette",
+  },
   { mode: "insert", keys: "Ctrl+n", action: "palette.next", scope: "palette" },
   { mode: "insert", keys: "Ctrl+p", action: "palette.prev", scope: "palette" },
   {
