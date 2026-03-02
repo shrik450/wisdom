@@ -6,6 +6,7 @@ export interface ActionBase {
   priority?: number;
   headerDisplay?: ActionHeaderDisplay;
   disabled?: boolean;
+  aliases?: string[];
 }
 
 export interface CommandActionSpec extends ActionBase {
@@ -56,6 +57,27 @@ function normalizedPriority(priority: number | undefined): number {
   return priority;
 }
 
+function areAliasesEqual(
+  first: readonly string[] | undefined,
+  second: readonly string[] | undefined,
+): boolean {
+  if (first === second) {
+    return true;
+  }
+  if (!first || !second) {
+    return false;
+  }
+  if (first.length !== second.length) {
+    return false;
+  }
+  for (let index = 0; index < first.length; index += 1) {
+    if (first[index] !== second[index]) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function areActionsEqual(
   first: readonly ActionSpec[],
   second: readonly ActionSpec[],
@@ -82,6 +104,9 @@ function areActionsEqual(
       return false;
     }
     if (left.disabled !== right.disabled) {
+      return false;
+    }
+    if (!areAliasesEqual(left.aliases, right.aliases)) {
       return false;
     }
     if (left.kind !== right.kind) {

@@ -3,6 +3,7 @@ import type { KeyBindingDef } from "./keyboard/keybind-state-machine";
 export const keybinds: KeyBindingDef[] = [
   // -- Normal mode: shell defaults --
   { mode: "normal", keys: "Space Space", action: "app.open-palette" },
+  { mode: "normal", keys: ":", action: "app.open-command-palette" },
   { mode: "normal", keys: "Space f", action: "app.toggle-fullscreen" },
   { mode: "normal", keys: "Space s", action: "app.toggle-sidebar" },
 
