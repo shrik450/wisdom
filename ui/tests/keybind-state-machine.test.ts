@@ -353,6 +353,20 @@ test("dispatch uses mode-specific bindings", () => {
   assert.equal(result.result.type, "none");
 });
 
+test("normal-mode : binding dispatches open-command-palette", () => {
+  const bindings: KeyBindingDef[] = [
+    { mode: "normal", keys: ":", action: "app.open-command-palette" },
+  ];
+  const actions: ResolvedAction[] = [commandAction("app.open-command-palette")];
+
+  const result = step(initialState(), key(":"), bindings, actions, "normal");
+  assert.equal(result.result.type, "execute-command");
+  if (result.result.type !== "execute-command") {
+    throw new Error("expected execute-command");
+  }
+  assert.equal(result.result.action.id, "app.open-command-palette");
+});
+
 test("dispatch filters scoped bindings by active scope", () => {
   const bindings: KeyBindingDef[] = [
     { mode: "normal", keys: "j", action: "cmd.j" },

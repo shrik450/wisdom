@@ -109,6 +109,7 @@ test("upsertActionContributor returns same state for equivalent actions", () => 
       label: "First",
       onSelect: noop,
       priority: 1,
+      aliases: ["w"],
     },
   ]);
 
@@ -119,10 +120,36 @@ test("upsertActionContributor returns same state for equivalent actions", () => 
       label: "First",
       onSelect: noop,
       priority: 1,
+      aliases: ["w"],
     },
   ]);
 
   assert.equal(equivalent, withContributor);
+});
+
+test("upsertActionContributor returns new state when aliases change", () => {
+  const initial = createActionRegistryState();
+  const withContributor = upsertActionContributor(initial, 11, [
+    {
+      kind: "command",
+      id: "first",
+      label: "First",
+      onSelect: noop,
+      aliases: ["w", "write"],
+    },
+  ]);
+
+  const updated = upsertActionContributor(withContributor, 11, [
+    {
+      kind: "command",
+      id: "first",
+      label: "First",
+      onSelect: noop,
+      aliases: ["write", "w"],
+    },
+  ]);
+
+  assert.notEqual(updated, withContributor);
 });
 
 test("upsertActionContributor returns new state when motion awaitChar changes", () => {

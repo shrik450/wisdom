@@ -41,7 +41,7 @@ import {
 } from "./shell-delete-action";
 import { CommandPalette } from "./command-palette";
 import { SidebarNav } from "./sidebar";
-import { shellReducer, type ShellState } from "./shell-state";
+import { shellReducer, type PaletteMode, type ShellState } from "./shell-state";
 import {
   KeyboardNavContext,
   ModeIndicator,
@@ -77,7 +77,7 @@ function createInitialShellState(): ShellState {
   return {
     fullscreen: readFullscreenPref(),
     navOpen: isDesktopViewport,
-    paletteOpen: false,
+    paletteMode: null,
   };
 }
 
@@ -891,9 +891,9 @@ export function Shell({ children }: { children: ReactNode }) {
     dispatch({ type: "TOGGLE_SIDEBAR" });
   }, []);
 
-  const openPalette = useCallback(() => {
+  const openPalette = useCallback((mode: PaletteMode) => {
     const isDesktopViewport = window.matchMedia(DESKTOP_MEDIA_QUERY).matches;
-    dispatch({ type: "OPEN_PALETTE", isDesktop: isDesktopViewport });
+    dispatch({ type: "OPEN_PALETTE", isDesktop: isDesktopViewport, mode });
   }, []);
 
   const closePalette = useCallback(() => {
@@ -934,7 +934,17 @@ export function Shell({ children }: { children: ReactNode }) {
         label: "Open Palette",
         onSelect: (count) => {
           void count;
-          openPalette();
+          openPalette("search");
+        },
+        headerDisplay: "palette-only" as const,
+      },
+      {
+        kind: "command",
+        id: "app.open-command-palette",
+        label: "Open Command Palette",
+        onSelect: (count) => {
+          void count;
+          openPalette("command");
         },
         headerDisplay: "palette-only" as const,
       },
@@ -1136,7 +1146,7 @@ export function Shell({ children }: { children: ReactNode }) {
                 </IconButton>
                 <IconButton
                   label="Search"
-                  onClick={openPalette}
+                  onClick={() => openPalette("search")}
                   buttonRef={paletteTriggerRef}
                   data-testid="palette-trigger"
                 >
@@ -1177,11 +1187,12 @@ export function Shell({ children }: { children: ReactNode }) {
 
         <main className="shell-main">{children}</main>
 
-        {state.paletteOpen && (
+        {state.paletteMode !== null && (
           <CommandPalette
             actions={allActions}
             onClose={closePalette}
             triggerRef={paletteTriggerRef}
+            openMode={state.paletteMode}
           />
         )}
 

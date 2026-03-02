@@ -1,14 +1,16 @@
+export type PaletteMode = "search" | "command";
+
 export interface ShellState {
   fullscreen: boolean;
   navOpen: boolean;
-  paletteOpen: boolean;
+  paletteMode: PaletteMode | null;
 }
 
 export type ShellAction =
   | { type: "TOGGLE_FULLSCREEN"; isDesktop: boolean }
   | { type: "TOGGLE_SIDEBAR" }
   | { type: "CLOSE_SIDEBAR" }
-  | { type: "OPEN_PALETTE"; isDesktop: boolean }
+  | { type: "OPEN_PALETTE"; isDesktop: boolean; mode: PaletteMode }
   | { type: "CLOSE_PALETTE" }
   | { type: "ROUTE_CHANGED"; isDesktop: boolean };
 
@@ -27,7 +29,7 @@ export function shellReducer(
         return {
           fullscreen: false,
           navOpen: action.isDesktop,
-          paletteOpen: false,
+          paletteMode: null,
         };
       }
 
@@ -35,7 +37,7 @@ export function shellReducer(
       return {
         fullscreen: true,
         navOpen: false,
-        paletteOpen: false,
+        paletteMode: null,
       };
 
     case "TOGGLE_SIDEBAR":
@@ -47,7 +49,7 @@ export function shellReducer(
       return {
         fullscreen: false,
         navOpen: true,
-        paletteOpen: false,
+        paletteMode: null,
       };
 
     case "CLOSE_SIDEBAR":
@@ -60,24 +62,24 @@ export function shellReducer(
       // On mobile, close sidebar when opening palette.
       return {
         ...state,
-        paletteOpen: true,
+        paletteMode: action.mode,
         navOpen: action.isDesktop ? state.navOpen : false,
       };
 
     case "CLOSE_PALETTE":
-      if (!state.paletteOpen) {
+      if (state.paletteMode === null) {
         return state;
       }
-      return { ...state, paletteOpen: false };
+      return { ...state, paletteMode: null };
 
     case "ROUTE_CHANGED":
       // Close palette; on mobile, also close sidebar.
-      if (!state.paletteOpen && (action.isDesktop || !state.navOpen)) {
+      if (state.paletteMode === null && (action.isDesktop || !state.navOpen)) {
         return state;
       }
       return {
         ...state,
-        paletteOpen: false,
+        paletteMode: null,
         navOpen: action.isDesktop ? state.navOpen : false,
       };
   }

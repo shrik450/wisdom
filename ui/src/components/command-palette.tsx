@@ -12,6 +12,10 @@ import { buildWorkspaceHref } from "../path-utils";
 import { type ResolvedAction } from "../actions/action-model";
 import { useActions, type ActionSpec } from "../actions/action-registry";
 import { useKeyboardNavContext } from "../keyboard/keyboard-nav";
+import {
+  filterCommandActions,
+  type ResolvedCommandAction,
+} from "./command-palette-filter";
 
 const DEBOUNCE_MS = 150;
 const SEARCH_LIMIT = 20;
@@ -20,6 +24,7 @@ interface PaletteItem {
   id: string;
   label: string;
   directory?: string;
+  aliases?: readonly string[];
   disabled?: boolean;
   onSelect: () => void;
 }
@@ -28,9 +33,8 @@ interface CommandPaletteProps {
   actions: readonly ResolvedAction[];
   onClose: () => void;
   triggerRef: RefObject<HTMLButtonElement | null>;
+  openMode: "search" | "command";
 }
-
-type ResolvedCommandAction = Extract<ResolvedAction, { kind: "command" }>;
 
 function fileResultsToPaletteItems(
   results: PathSearchResult[],
@@ -53,27 +57,27 @@ function fileResultsToPaletteItems(
   });
 }
 
-function filterActions(
+function commandActionsToPaletteItems(
   actions: readonly ResolvedCommandAction[],
-  query: string,
 ): PaletteItem[] {
-  const lowerQuery = query.toLowerCase();
-  return actions
-    .filter((action) => action.label.toLowerCase().includes(lowerQuery))
-    .map((action) => ({
-      id: `action:${action.id}`,
-      label: action.label,
-      disabled: action.disabled,
-      onSelect: () => action.onSelect(null),
-    }));
+  return actions.map((action) => ({
+    id: `action:${action.id}`,
+    label: action.label,
+    aliases: action.aliases,
+    disabled: action.disabled,
+    onSelect: () => action.onSelect(null),
+  }));
 }
 
 export function CommandPalette({
   actions,
   onClose,
   triggerRef,
+  openMode,
 }: CommandPaletteProps) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(() => {
+    return openMode === "command" ? ">" : "";
+  });
   const [fileResults, setFileResults] = useState<PathSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -81,6 +85,7 @@ export function CommandPalette({
   const abortRef = useRef<AbortController | null>(null);
   const debounceRef = useRef<number>(0);
   const listRef = useRef<HTMLDivElement>(null);
+  const initializedOpenModeRef = useRef(false);
   const [, navigate] = useLocation();
 
   const isCommandMode = query.startsWith(">");
@@ -138,10 +143,15 @@ export function CommandPalette({
     };
   }, []);
 
-  // Focus input on mount.
   useEffect(() => {
+    if (initializedOpenModeRef.current) {
+      setQuery(openMode === "command" ? ">" : "");
+    } else {
+      initializedOpenModeRef.current = true;
+    }
+
     inputRef.current?.focus();
-  }, []);
+  }, [openMode]);
 
   // Return focus to the button that opened the palette on unmount.
   useEffect(() => {
@@ -159,7 +169,9 @@ export function CommandPalette({
 
   const items = useMemo<PaletteItem[]>(() => {
     if (isCommandMode) {
-      return filterActions(commandActions, commandQuery);
+      return commandActionsToPaletteItems(
+        filterCommandActions(commandActions, commandQuery),
+      );
     }
     return fileResultsToPaletteItems(fileResults, navigate);
   }, [isCommandMode, commandQuery, commandActions, fileResults, navigate]);
@@ -328,6 +340,18 @@ export function CommandPalette({
                   </span>
                 )}
                 <span className="shrink-0 font-medium">{item.label}</span>
+                {item.aliases && item.aliases.length > 0 && (
+                  <span className="ml-auto flex min-w-0 items-center gap-1">
+                    {item.aliases.map((alias) => (
+                      <span
+                        key={`${item.id}:${alias}`}
+                        className="rounded border border-bdr px-1.5 py-0.5 text-xs text-txt-muted"
+                      >
+                        {alias}
+                      </span>
+                    ))}
+                  </span>
+                )}
               </button>
             ))}
           </div>
