@@ -49,7 +49,7 @@ function fileExtension(name: string): string | null {
 }
 
 // Strips parameters (charset, boundary, etc.) to get the bare MIME type.
-export function parseContentType(header: string | null): string | null {
+function parseContentType(header: string | null): string | null {
   if (!header) {
     return null;
   }

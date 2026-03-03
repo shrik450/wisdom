@@ -48,10 +48,6 @@ function DirectoryViewer({ path, entry }: ViewerProps) {
   const entries = useMemo(() => sortEntries(data ?? []), [data]);
 
   useEffect(() => {
-    setSelected(0);
-  }, [path]);
-
-  useEffect(() => {
     const row = rowRefs.current.get(selected);
     row?.scrollIntoView({ block: "nearest" });
   }, [selected]);

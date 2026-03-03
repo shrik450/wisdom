@@ -144,15 +144,6 @@ function Breadcrumbs() {
       : path;
 
   useEffect(() => {
-    setCreating(false);
-    setDraft("");
-    setCreateError(null);
-    setCreatePending(false);
-    setDeletePending(false);
-    setDeleteError(null);
-  }, [path]);
-
-  useEffect(() => {
     if (creating) {
       createInputRef.current?.focus();
     }
@@ -852,6 +843,7 @@ export function Shell({ children }: { children: ReactNode }) {
     createInitialShellState,
   );
   const [location] = useLocation();
+  const { path: workspacePath } = useWorkspaceEntryInfo();
   const allActions = useResolvedActions();
   const { contextValue: keyboardNav } = useKeyboardNav(keybinds, allActions);
   const { popMode } = keyboardNav;
@@ -1091,11 +1083,6 @@ export function Shell({ children }: { children: ReactNode }) {
   }, [state.navOpen, isDesktop]);
 
   useEffect(() => {
-    if (!state.fullscreen) {
-      setFullscreenControlsVisible(true);
-      setControlsContainFocus(false);
-      return;
-    }
     setFullscreenControlsVisible(true);
     setControlsContainFocus(false);
   }, [state.fullscreen]);
@@ -1162,7 +1149,7 @@ export function Shell({ children }: { children: ReactNode }) {
                 </IconButton>
               </div>
               <div className="min-w-0 flex-1">
-                <Breadcrumbs />
+                <Breadcrumbs key={workspacePath} />
               </div>
               {headerActions.length > 0 && (
                 <ShellHeaderActions

@@ -1,4 +1,4 @@
-export interface Breadcrumb {
+interface Breadcrumb {
   name: string;
   path: string;
   href: string;

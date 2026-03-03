@@ -4,7 +4,7 @@ const DEFAULT_ACTION_WIDTH_PX = 96;
 const DEFAULT_OVERFLOW_BUTTON_WIDTH_PX = 88;
 const DEFAULT_ACTION_GAP_PX = 8;
 
-export interface HeaderActionLayoutInput<TAction extends ResolvedAction> {
+interface HeaderActionLayoutInput<TAction extends ResolvedAction> {
   actions: readonly TAction[];
   containerWidth: number;
   buttonWidths: Readonly<Record<string, number>>;
@@ -13,7 +13,7 @@ export interface HeaderActionLayoutInput<TAction extends ResolvedAction> {
   mobile: boolean;
 }
 
-export interface HeaderActionLayout<TAction extends ResolvedAction> {
+interface HeaderActionLayout<TAction extends ResolvedAction> {
   inlineActions: readonly TAction[];
   overflowActions: readonly TAction[];
 }
