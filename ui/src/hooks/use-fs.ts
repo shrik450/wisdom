@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { listDir, readFile } from "../api/fs";
 import { type DirEntry } from "../api/types";
 
-export interface AsyncState<T> {
+interface AsyncState<T> {
   data: T | null;
   loading: boolean;
   error: Error | null;
@@ -17,7 +17,7 @@ function isAbortError(error: unknown): boolean {
   );
 }
 
-export function useAsync<T>(
+function useAsync<T>(
   fn: (signal: AbortSignal) => Promise<T>,
   refreshToken = 0,
 ): AsyncState<T> {

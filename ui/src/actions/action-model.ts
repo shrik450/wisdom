@@ -1,6 +1,6 @@
-export type ActionHeaderDisplay = "inline" | "overflow" | "palette-only";
+type ActionHeaderDisplay = "inline" | "overflow" | "palette-only";
 
-export interface ActionBase {
+interface ActionBase {
   id: string;
   label: string;
   priority?: number;

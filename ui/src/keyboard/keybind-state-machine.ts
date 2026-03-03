@@ -13,7 +13,7 @@ export interface KeyBindingDef {
   description?: string;
 }
 
-export type MatchResult = "full" | "prefix" | "none";
+type MatchResult = "full" | "prefix" | "none";
 
 export interface KeyEventLike {
   key: string;
@@ -38,7 +38,7 @@ export interface KeybindState {
   } | null;
 }
 
-export type DispatchResult =
+type DispatchResult =
   | { type: "none" }
   | { type: "pending"; preventDefault: boolean }
   | { type: "reset"; preventDefault: boolean }
@@ -62,11 +62,11 @@ const MODIFIER_KEYS = new Set(["Control", "Meta", "Alt", "Shift"]);
 const KEY_ALIASES: Record<string, string> = { Space: " " };
 const REVERSE_KEY_ALIASES: Record<string, string> = { " ": "Space" };
 
-export function parseKeys(keys: string): string[] {
+function parseKeys(keys: string): string[] {
   return keys.split(" ");
 }
 
-export function parseKeyStep(step: string): {
+function parseKeyStep(step: string): {
   modifiers: Set<string>;
   key: string;
 } {
@@ -76,7 +76,7 @@ export function parseKeyStep(step: string): {
   return { modifiers, key };
 }
 
-export function eventMatchesStep(event: KeyEventLike, step: string): boolean {
+function eventMatchesStep(event: KeyEventLike, step: string): boolean {
   const { modifiers, key } = parseKeyStep(step);
   const resolved = KEY_ALIASES[key] ?? key;
   if (event.key !== resolved) return false;
@@ -87,7 +87,7 @@ export function eventMatchesStep(event: KeyEventLike, step: string): boolean {
   return true;
 }
 
-export function keyRepresentation(event: KeyEventLike): string {
+function keyRepresentation(event: KeyEventLike): string {
   const parts: string[] = [];
   if (event.ctrlKey) parts.push("Ctrl");
   if (event.metaKey) parts.push("Meta");
@@ -97,7 +97,7 @@ export function keyRepresentation(event: KeyEventLike): string {
   return parts.join("+");
 }
 
-export function matchBinding(
+function matchBinding(
   pending: readonly string[],
   event: KeyEventLike,
   binding: KeyBindingDef,

@@ -16,7 +16,7 @@ import {
   type KeybindState,
 } from "./keybind-state-machine";
 
-export interface KeyboardNavContextValue {
+interface KeyboardNavContextValue {
   mode: string;
   activeScope: string | null;
   pendingKeys: readonly string[];
