@@ -26,7 +26,8 @@ export const wisdomEditorTheme = EditorView.theme({
     backgroundColor: "var(--surface-raised)",
   },
   ".cm-activeLine": {
-    backgroundColor: "var(--surface-raised)",
+    backgroundColor:
+      "color-mix(in srgb, var(--surface-raised) 60%, transparent)",
   },
   "&.cm-focused .cm-cursor": {
     borderLeftColor: "var(--accent)",
@@ -120,5 +121,8 @@ export const blockCursorTheme = EditorView.theme({
     width: "0.6em",
     backgroundColor: "var(--accent)",
     opacity: "0.7",
+  },
+  "& > .cm-scroller > .cm-cursorLayer .cm-cursor": {
+    display: "block",
   },
 });

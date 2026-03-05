@@ -223,6 +223,12 @@ export function useKeyboardNav(
           clearPendingTimeout();
           return;
         }
+        case "execute-operator-line":
+          event.preventDefault();
+          result.operator.applyLine?.(result.count);
+          syncState();
+          clearPendingTimeout();
+          return;
       }
     };
 

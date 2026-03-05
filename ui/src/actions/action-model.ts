@@ -23,6 +23,7 @@ export interface MotionActionSpec extends ActionBase {
 export interface OperatorActionSpec extends ActionBase {
   kind: "operator";
   apply: (range: { from: number; to: number }) => void;
+  applyLine?: (count: number | null) => void;
 }
 
 export type ActionSpec =
@@ -134,6 +135,9 @@ function areActionsEqual(
       case "operator": {
         const rightOperator = right as OperatorActionSpec;
         if (left.apply !== rightOperator.apply) {
+          return false;
+        }
+        if (left.applyLine !== rightOperator.applyLine) {
           return false;
         }
         break;

@@ -56,7 +56,19 @@ type DispatchResult =
       operatorCount: number | null;
       motionCount: number | null;
       char?: string;
+    }
+  | {
+      type: "execute-operator-line";
+      operator: OperatorActionSpec;
+      count: number | null;
     };
+
+function multiplyCount(a: number | null, b: number | null): number | null {
+  if (a === null && b === null) {
+    return null;
+  }
+  return (a ?? 1) * (b ?? 1);
+}
 
 const MODIFIER_KEYS = new Set(["Control", "Meta", "Alt", "Shift"]);
 const KEY_ALIASES: Record<string, string> = { Space: " " };
@@ -310,6 +322,21 @@ export function dispatch(
   let hasPrefix = false;
 
   if (state.pendingOperator) {
+    if (
+      state.pendingKeys.length === 0 &&
+      eventMatchesStep(event, state.pendingOperator.key)
+    ) {
+      const combinedCount = multiplyCount(state.pendingOperator.count, state.count);
+      return {
+        nextState: initialState(),
+        result: {
+          type: "execute-operator-line",
+          operator: state.pendingOperator.action,
+          count: combinedCount,
+        },
+      };
+    }
+
     const motionMatches = collectKindMatches(
       state.pendingKeys,
       event,
