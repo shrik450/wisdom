@@ -23,7 +23,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-mode="light"]) {
+  :root {
     --bg: #262320;
     --surface: #322e2a;
     --surface-raised: #3d3834;
@@ -36,20 +36,6 @@
     --link: #c0a37e;
     --highlight: #443c2e;
   }
-}
-
-[data-mode="dark"] {
-  --bg: #262320;
-  --surface: #322e2a;
-  --surface-raised: #3d3834;
-  --txt: #ddd6ca;
-  --txt-muted: #9e9586;
-  --bdr: #4a443d;
-  --accent: #b89b76;
-  --accent-hover: #cbb08c;
-  --accent-text: #262320;
-  --link: #c0a37e;
-  --highlight: #443c2e;
 }
 
 .shell-root {

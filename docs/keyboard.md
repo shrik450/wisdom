@@ -60,16 +60,17 @@ contextual modes (like `"palette"`).
 | Mode | When active | Key behavior |
 |------|-------------|--------------|
 | **Normal** | Default. Bottom of the stack. | Navigation keys active. Leader key (Space) starts sequences. |
-| **Insert** | Derived fallback: when mode is Normal and an input is focused. | Only insert-mode bindings fire. Unmatched keys pass through to the focused input. |
+| **Insert** | Auto-pushed when standard form inputs (`input`, `textarea`, `select`) receive focus; auto-popped on blur. Components using `contenteditable` manage insert mode explicitly. | Only insert-mode bindings fire. Unmatched keys pass through to the focused input. |
 | **Visual** | Explicitly pushed by a component (e.g., directory viewer for multi-select, future editor for text selection). | Visual-mode bindings fire. |
 | **Custom** | Pushed by any component (e.g., `"palette"`, `"annotating"`). | Only bindings for that mode fire. Unmatched keys pass through. |
 
-**Insert mode** is a derived fallback, not a stack entry. When the explicit
-mode is Normal and `document.activeElement` matches `input, textarea, select,
-[contenteditable="true"]`, the effective mode is Insert. This handles
-"unmanaged" inputs (breadcrumb creator, etc.) without requiring every input to
-push a mode. If a component has pushed any other mode (palette, visual, etc.),
-the derived check does not apply — the explicit mode takes precedence.
+**Insert mode** is managed by events, not derived on each keypress.
+`useKeyboardNav` listens to `focusin`/`focusout` and pushes/pops `"insert"`
+for standard form elements (`input`, `textarea`, `select`). This keeps form
+inputs working without each input component manually managing the mode stack.
+
+Components using `contenteditable` (like the editor) manage insert mode
+explicitly with `pushMode("insert")` / `popMode()`.
 
 **Mode stack mechanics:**
 
@@ -91,9 +92,8 @@ palette-mode bindings.
 
 The keyboard handler follows one uniform path for every keypress:
 
-1. **Determine the effective mode.** Top of the mode stack. If the stack is
-   empty (or top is `"normal"`) and an input is focused, effective mode is
-   `"insert"`.
+1. **Determine the effective mode.** Top of the mode stack, or `"normal"` if
+   the stack is empty.
 2. **Ignore modifier-only keypresses.** If `event.ctrlKey`, `event.metaKey`, or
    `event.altKey` is true and the binding doesn't explicitly include that
    modifier, pass through.
@@ -122,9 +122,9 @@ Escape is a regular binding, defined per-mode in `keybinds.ts`:
 { mode: "visual",  keys: "Escape", action: "app.enter-normal" },
 ```
 
-- In Insert mode (derived): `app.blur` calls
-  `(document.activeElement as HTMLElement)?.blur()`. The input loses focus,
-  and with no input focused, the derived mode check returns Normal.
+- In Insert mode: `app.blur` calls
+  `(document.activeElement as HTMLElement)?.blur()`. For standard form inputs,
+  blur triggers `focusout`, which pops the auto-pushed insert mode.
 - In palette mode: `palette.close` closes the palette. The palette unmounts,
   calling `popMode()`, which restores the previous mode.
 - In Visual mode: `app.enter-normal` pops Visual mode (or resets to Normal).
@@ -150,7 +150,7 @@ A `KeyboardNavContext` is exposed via React context:
 
 ```typescript
 interface KeyboardNavContext {
-  mode: string;                    // effective mode (top of stack or derived)
+  mode: string;                    // effective mode (top of stack or "normal")
   pendingKeys: readonly string[];
   pushMode: (mode: string) => void;
   popMode: () => void;
@@ -388,9 +388,9 @@ device" but actually describe the pointing device, not the keyboard.
 
 **No special gating is needed.** On a pure touch device without a physical
 keyboard, the user never presses single-letter keys outside of an input. When
-they do type (via a virtual keyboard), an input is focused, so the derived
-Insert mode applies and unmatched keys pass through. The keyboard system is
-naturally inert on touch-only devices.
+they do type (via a virtual keyboard), focused form inputs auto-push insert
+mode and unmatched keys pass through. The keyboard system is naturally inert on
+touch-only devices.
 
 The only mobile concern is visual noise: the mode indicator is hidden on touch
 devices via a `(pointer: coarse)` media query.
@@ -418,8 +418,8 @@ Globally capturing single-letter keys can interfere with screen readers (which
 use letter keys for quick navigation) and browser accessibility features. Given
 Wisdom's scope (personal tool, "for consenting adults"), full WCAG compliance
 is not a goal. However, the system preserves browser modifier shortcuts
-(Ctrl/Cmd/Alt combinations) by default, and the derived Insert mode bail-out
-covers the most common assistive-technology interaction pattern.
+(Ctrl/Cmd/Alt combinations) by default, and insert mode for focused form
+inputs covers the most common assistive-technology interaction pattern.
 
 ## Open questions
 

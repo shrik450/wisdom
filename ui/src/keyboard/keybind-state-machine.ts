@@ -233,7 +233,6 @@ export function dispatch(
   actionMap: ReadonlyMap<string, ResolvedAction>,
   currentMode: string,
   activeScope: string | null,
-  inputFocused: boolean,
 ): { nextState: KeybindState; result: DispatchResult } {
   if (MODIFIER_KEYS.has(event.key)) {
     return { nextState: state, result: { type: "none" } };
@@ -276,7 +275,7 @@ export function dispatch(
     return { nextState: state, result: { type: "none" } };
   }
 
-  if (!inputFocused) {
+  if (currentMode !== "insert") {
     if (/^[1-9]$/.test(event.key) && state.count === null) {
       return {
         nextState: {

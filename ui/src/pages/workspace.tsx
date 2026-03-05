@@ -39,9 +39,9 @@ export function WorkspaceView() {
     if (allViewers.length < 2) return [];
     return allViewers
       .filter((route) => route.component !== activeViewer?.component)
-      .map((route, index) => ({
-        kind: "command" as const,
-        id: `shell.view-as.${index}`,
+      .map((route) => ({
+        kind: "command",
+        id: `shell.view-as.${route.name}`,
         label: `View as ${route.name}`,
         onSelect: (count: number | null) => {
           void count;

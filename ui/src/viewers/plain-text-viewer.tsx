@@ -1,47 +1,9 @@
 import { useCallback, useMemo } from "react";
-import { useActions } from "../actions/action-registry";
+import { useActions, type ActionSpec } from "../actions/action-registry";
 import { useFileContent } from "../hooks/use-fs";
+import { isLikelyTextFallback, isTextContentType } from "../content-type-utils";
+import type { KeyBindingDef } from "../keyboard/keybind-state-machine";
 import { type ViewerProps, type ViewerRoute } from "./registry";
-
-const TEXT_MIME_PREFIXES = ["text/"];
-
-// These are structured text formats that use application/ rather than text/
-// per MIME conventions, but are still human-readable and useful to display.
-const TEXT_LIKE_MIME_TYPES = new Set([
-  "application/json",
-  "application/xml",
-  "application/javascript",
-  "application/typescript",
-  "application/toml",
-  "application/yaml",
-  "application/x-sh",
-  "application/x-httpd-php",
-  "application/graphql",
-  "application/sql",
-]);
-
-function isTextContentType(contentType: string | null): boolean {
-  if (!contentType) {
-    return false;
-  }
-  for (const prefix of TEXT_MIME_PREFIXES) {
-    if (contentType.startsWith(prefix)) {
-      return true;
-    }
-  }
-  return TEXT_LIKE_MIME_TYPES.has(contentType);
-}
-
-// Extensionless files get application/octet-stream from Go's content sniffing
-// when the first 512 bytes look like binary. But many extensionless files
-// (Makefile, Dockerfile, LICENSE) are plain text. We optimistically show them
-// here; the stat viewer is the fallback if this guess is wrong.
-function isLikelyTextFallback(
-  contentType: string | null,
-  extension: string | null,
-): boolean {
-  return contentType === "application/octet-stream" && extension === null;
-}
 
 function PlainTextViewer({ path }: ViewerProps) {
   const { data, loading, error } = useFileContent(path);
@@ -57,14 +19,14 @@ function PlainTextViewer({ path }: ViewerProps) {
   );
 
   useActions(
-    useMemo(
+    useMemo<readonly ActionSpec[]>(
       () => [
         {
           kind: "command",
           id: "text.copy",
           label: "Copy File Content",
           onSelect: copyContent,
-          headerDisplay: "palette-only" as const,
+          headerDisplay: "palette-only",
         },
       ],
       [copyContent],
@@ -86,6 +48,12 @@ function PlainTextViewer({ path }: ViewerProps) {
   );
 }
 
+export const defaultKeybinds: KeyBindingDef[] = [
+  { mode: "normal", keys: "y", action: "text.copy", scope: "plain-text" },
+];
+
+// The editor viewer matches the same predicates at higher priority, so this
+// route only activates when explicitly selected via "View as".
 export const plainTextViewerRoute: ViewerRoute = {
   name: "Plain Text",
   scope: "plain-text",

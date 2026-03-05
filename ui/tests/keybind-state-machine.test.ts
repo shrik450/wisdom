@@ -99,7 +99,6 @@ function step(
   actions: readonly ResolvedAction[],
   mode = "normal",
   activeScope: string | null = null,
-  inputFocused = false,
 ) {
   return dispatch(
     state,
@@ -108,7 +107,6 @@ function step(
     buildActionMap(actions),
     mode,
     activeScope,
-    inputFocused,
   );
 }
 
@@ -169,8 +167,8 @@ test("count resets on Escape and unbound key", () => {
   assert.equal(result.result.type, "reset");
 });
 
-test("digits are not consumed when input is focused", () => {
-  const result = step(initialState(), key("3"), [], [], "normal", null, true);
+test("digits are not consumed in insert mode", () => {
+  const result = step(initialState(), key("3"), [], [], "insert");
   assert.equal(result.result.type, "none");
   assert.equal(result.nextState.count, null);
 });
