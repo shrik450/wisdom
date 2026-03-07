@@ -30,7 +30,8 @@ interface KeyboardNavContextValue {
 }
 
 const SEQUENCE_TIMEOUT_MS = 500;
-const INPUT_SELECTOR = "input, textarea, select, [contenteditable='true']";
+const FORM_INPUT_SELECTOR = "input, textarea, select";
+const SKIP_AUTO_INSERT_ATTR = "data-kb-no-auto-insert";
 
 function multiplyCount(a: number | null, b: number | null): number | null {
   if (a === null && b === null) {
@@ -39,16 +40,14 @@ function multiplyCount(a: number | null, b: number | null): number | null {
   return (a ?? 1) * (b ?? 1);
 }
 
-function isInputFocused(): boolean {
-  const el = document.activeElement;
-  if (!el) return false;
-  return el.matches(INPUT_SELECTOR);
+function effectiveMode(modeStack: readonly string[]): string {
+  return modeStack.length > 0 ? modeStack[modeStack.length - 1] : "normal";
 }
 
-function effectiveMode(modeStack: readonly string[]): string {
-  const top = modeStack.length > 0 ? modeStack[modeStack.length - 1] : "normal";
-  if (top === "normal" && isInputFocused()) return "insert";
-  return top;
+function shouldAutoPushInsert(el: HTMLElement): boolean {
+  return (
+    el.matches(FORM_INPUT_SELECTOR) && !el.hasAttribute(SKIP_AUTO_INSERT_ATTR)
+  );
 }
 
 export const KeyboardNavContext = createContext<KeyboardNavContextValue | null>(
@@ -176,7 +175,6 @@ export function useKeyboardNav(
         actionMapRef.current,
         currentMode,
         getActiveScope(),
-        isInputFocused(),
       );
       stateRef.current = nextState;
 
@@ -225,6 +223,12 @@ export function useKeyboardNav(
           clearPendingTimeout();
           return;
         }
+        case "execute-operator-line":
+          event.preventDefault();
+          result.operator.applyLine?.(result.count);
+          syncState();
+          clearPendingTimeout();
+          return;
       }
     };
 
@@ -232,15 +236,43 @@ export function useKeyboardNav(
     return () => window.removeEventListener("keydown", handler);
   }, [bindings, clearPendingTimeout, getActiveScope, resetTimeout, syncState]);
 
+  // Auto-push/pop insert mode when standard form inputs gain/lose focus.
+  // This assumes explicit pushMode("insert") (e.g. from the editor viewer's
+  // contenteditable) and auto-push never overlap: contenteditable elements
+  // don't match FORM_INPUT_SELECTOR, and overlays like the command palette
+  // opt out via data-kb-no-auto-insert. If that invariant breaks, the
+  // lastIndexOf("insert") pop could remove the wrong stack entry.
   useEffect(() => {
-    const onFocusChange = () => setMode(effectiveMode(modeStackRef.current));
-    document.addEventListener("focusin", onFocusChange, true);
-    document.addEventListener("focusout", onFocusChange, true);
-    return () => {
-      document.removeEventListener("focusin", onFocusChange, true);
-      document.removeEventListener("focusout", onFocusChange, true);
+    const onFocusIn = (event: FocusEvent) => {
+      const el = event.target;
+      if (el instanceof HTMLElement && shouldAutoPushInsert(el)) {
+        modeStackRef.current = [...modeStackRef.current, "insert"];
+        clearPending();
+      }
     };
-  }, []);
+
+    const onFocusOut = (event: FocusEvent) => {
+      const el = event.target;
+      if (el instanceof HTMLElement && shouldAutoPushInsert(el)) {
+        const stack = modeStackRef.current;
+        const lastInsert = stack.lastIndexOf("insert");
+        if (lastInsert >= 0) {
+          modeStackRef.current = [
+            ...stack.slice(0, lastInsert),
+            ...stack.slice(lastInsert + 1),
+          ];
+          clearPending();
+        }
+      }
+    };
+
+    document.addEventListener("focusin", onFocusIn, true);
+    document.addEventListener("focusout", onFocusOut, true);
+    return () => {
+      document.removeEventListener("focusin", onFocusIn, true);
+      document.removeEventListener("focusout", onFocusOut, true);
+    };
+  }, [clearPending]);
 
   const contextValue = useMemo<KeyboardNavContextValue>(
     () => ({

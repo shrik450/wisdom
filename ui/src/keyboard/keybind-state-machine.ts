@@ -56,7 +56,19 @@ type DispatchResult =
       operatorCount: number | null;
       motionCount: number | null;
       char?: string;
+    }
+  | {
+      type: "execute-operator-line";
+      operator: OperatorActionSpec;
+      count: number | null;
     };
+
+function multiplyCount(a: number | null, b: number | null): number | null {
+  if (a === null && b === null) {
+    return null;
+  }
+  return (a ?? 1) * (b ?? 1);
+}
 
 const MODIFIER_KEYS = new Set(["Control", "Meta", "Alt", "Shift"]);
 const KEY_ALIASES: Record<string, string> = { Space: " " };
@@ -233,7 +245,6 @@ export function dispatch(
   actionMap: ReadonlyMap<string, ResolvedAction>,
   currentMode: string,
   activeScope: string | null,
-  inputFocused: boolean,
 ): { nextState: KeybindState; result: DispatchResult } {
   if (MODIFIER_KEYS.has(event.key)) {
     return { nextState: state, result: { type: "none" } };
@@ -276,7 +287,7 @@ export function dispatch(
     return { nextState: state, result: { type: "none" } };
   }
 
-  if (!inputFocused) {
+  if (currentMode !== "insert") {
     if (/^[1-9]$/.test(event.key) && state.count === null) {
       return {
         nextState: {
@@ -329,7 +340,26 @@ export function dispatch(
     selectedFullMatch = motionMatches.full ?? commandMatches.full;
     hasPrefix = motionMatches.hasPrefix || commandMatches.hasPrefix;
 
-    if (!selectedFullMatch && !hasPrefix) {
+    if (selectedFullMatch || hasPrefix) {
+      // Explicit motion/command sequences take precedence over the implicit
+      // doubled-operator line action.
+    } else if (
+      state.pendingKeys.length === 0 &&
+      eventMatchesStep(event, state.pendingOperator.key)
+    ) {
+      const combinedCount = multiplyCount(
+        state.pendingOperator.count,
+        state.count,
+      );
+      return {
+        nextState: initialState(),
+        result: {
+          type: "execute-operator-line",
+          operator: state.pendingOperator.action,
+          count: combinedCount,
+        },
+      };
+    } else {
       return {
         nextState: initialState(),
         result: { type: "reset", preventDefault: false },

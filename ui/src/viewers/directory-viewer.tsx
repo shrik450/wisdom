@@ -1,23 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { useActions } from "../actions/action-registry";
+import { useActions, type ActionSpec } from "../actions/action-registry";
 import { useDirectoryListing } from "../hooks/use-fs";
 import { useWorkspaceRefreshToken } from "../hooks/use-workspace-mutated";
 import { buildWorkspaceHref, joinWorkspacePath } from "../path-utils";
-import { type DirEntry } from "../api/types";
+import { sortDirEntries } from "../api/types";
+import type { KeyBindingDef } from "../keyboard/keybind-state-machine";
 import { type ViewerProps, type ViewerRoute } from "./registry";
-
-function sortEntries(entries: DirEntry[]): DirEntry[] {
-  return [...entries].sort((a, b) => {
-    if (a.isDir && !b.isDir) {
-      return -1;
-    }
-    if (!a.isDir && b.isDir) {
-      return 1;
-    }
-    return a.name.localeCompare(b.name);
-  });
-}
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) {
@@ -45,7 +34,7 @@ function DirectoryViewer({ path, entry }: ViewerProps) {
   const [selected, setSelected] = useState(0);
   const rowRefs = useRef<Map<number, HTMLTableRowElement>>(new Map());
 
-  const entries = useMemo(() => sortEntries(data ?? []), [data]);
+  const entries = useMemo(() => sortDirEntries(data ?? []), [data]);
 
   useEffect(() => {
     const row = rowRefs.current.get(selected);
@@ -106,49 +95,49 @@ function DirectoryViewer({ path, entry }: ViewerProps) {
   );
 
   useActions(
-    useMemo(
+    useMemo<readonly ActionSpec[]>(
       () => [
         {
           kind: "command",
           id: "dir.move-down",
           label: "Next Entry",
           onSelect: moveDown,
-          headerDisplay: "palette-only" as const,
+          headerDisplay: "palette-only",
         },
         {
           kind: "command",
           id: "dir.move-up",
           label: "Previous Entry",
           onSelect: moveUp,
-          headerDisplay: "palette-only" as const,
+          headerDisplay: "palette-only",
         },
         {
           kind: "command",
           id: "dir.open",
           label: "Open Entry",
           onSelect: openSelected,
-          headerDisplay: "palette-only" as const,
+          headerDisplay: "palette-only",
         },
         {
           kind: "command",
           id: "dir.parent",
           label: "Go to Parent",
           onSelect: goParent,
-          headerDisplay: "palette-only" as const,
+          headerDisplay: "palette-only",
         },
         {
           kind: "command",
           id: "dir.first",
           label: "Jump to First",
           onSelect: jumpFirst,
-          headerDisplay: "palette-only" as const,
+          headerDisplay: "palette-only",
         },
         {
           kind: "command",
           id: "dir.last",
           label: "Jump to Last",
           onSelect: jumpLast,
-          headerDisplay: "palette-only" as const,
+          headerDisplay: "palette-only",
         },
       ],
       [moveDown, moveUp, openSelected, goParent, jumpFirst, jumpLast],
@@ -223,6 +212,16 @@ function DirectoryViewer({ path, entry }: ViewerProps) {
     </div>
   );
 }
+
+export const defaultKeybinds: KeyBindingDef[] = [
+  { mode: "normal", keys: "j", action: "dir.move-down", scope: "directory" },
+  { mode: "normal", keys: "k", action: "dir.move-up", scope: "directory" },
+  { mode: "normal", keys: "Enter", action: "dir.open", scope: "directory" },
+  { mode: "normal", keys: "l", action: "dir.open", scope: "directory" },
+  { mode: "normal", keys: "h", action: "dir.parent", scope: "directory" },
+  { mode: "normal", keys: "g g", action: "dir.first", scope: "directory" },
+  { mode: "normal", keys: "G", action: "dir.last", scope: "directory" },
+];
 
 export const directoryViewerRoute: ViewerRoute = {
   name: "Directory",

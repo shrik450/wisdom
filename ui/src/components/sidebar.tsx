@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useRoute } from "wouter";
-import { DirEntry } from "../api/types";
+import { DirEntry, sortDirEntries } from "../api/types";
 import { useDirectoryListing } from "../hooks/use-fs";
 import {
   buildWorkspaceHref,
@@ -21,18 +21,6 @@ interface FileTreeNodeProps {
   activePath: string;
   onNavigate?: () => void;
   refreshToken: number;
-}
-
-function sortEntries(entries: DirEntry[]): DirEntry[] {
-  return [...entries].sort((a, b) => {
-    if (a.isDir && !b.isDir) {
-      return -1;
-    }
-    if (!a.isDir && b.isDir) {
-      return 1;
-    }
-    return a.name.localeCompare(b.name);
-  });
 }
 
 function subtreeIdForPath(path: string): string {
@@ -156,7 +144,7 @@ function SubTree({
 
   return (
     <ul id={id} className="pl-3">
-      {sortEntries(data ?? []).map((entry) => (
+      {sortDirEntries(data ?? []).map((entry) => (
         <FileTreeNode
           key={entry.name}
           entry={entry}
@@ -189,7 +177,7 @@ export function SidebarNav({ onNavigate, refreshToken = 0 }: SidebarNavProps) {
       )}
       {data && (
         <ul>
-          {sortEntries(data).map((entry) => (
+          {sortDirEntries(data).map((entry) => (
             <FileTreeNode
               key={entry.name}
               entry={entry}

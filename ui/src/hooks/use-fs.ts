@@ -30,6 +30,7 @@ function useAsync<T>(
 
   useEffect(() => {
     const controller = new AbortController();
+    setData(null);
     setLoading(true);
     setError(null);
 

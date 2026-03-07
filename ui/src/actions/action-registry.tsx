@@ -45,7 +45,11 @@ function contributorActionKey(contributorId: number, actionId: string): string {
 type ActionHandler =
   | { kind: "command"; fn: CommandActionSpec["onSelect"] }
   | { kind: "motion"; fn: MotionActionSpec["range"] }
-  | { kind: "operator"; fn: OperatorActionSpec["apply"] };
+  | {
+      kind: "operator";
+      apply: OperatorActionSpec["apply"];
+      applyLine?: OperatorActionSpec["applyLine"];
+    };
 
 // Replace each action's handler with a stable wrapper that looks up the
 // current handler at call time. This keeps function identity stable across
@@ -115,17 +119,28 @@ function toRegisteredActions(
         };
       }
       case "operator": {
-        handlers.set(key, { kind: "operator", fn: action.apply });
+        handlers.set(key, {
+          kind: "operator",
+          apply: action.apply,
+          applyLine: action.applyLine,
+        });
         let wrapper = wrappers.get(key);
         if (!wrapper) {
           wrapper = {
             kind: "operator",
-            fn: (range: { from: number; to: number }) => {
+            apply: (range: { from: number; to: number }) => {
               const handler = handlers.get(key);
               if (!handler || handler.kind !== "operator") {
                 throw new Error(`Expected operator handler for ${key}`);
               }
-              handler.fn(range);
+              handler.apply(range);
+            },
+            applyLine: (count: number | null) => {
+              const handler = handlers.get(key);
+              if (!handler || handler.kind !== "operator") {
+                throw new Error(`Expected operator handler for ${key}`);
+              }
+              handler.applyLine?.(count);
             },
           };
           wrappers.set(key, wrapper);
@@ -135,7 +150,8 @@ function toRegisteredActions(
         }
         return {
           ...action,
-          apply: wrapper.fn,
+          apply: wrapper.apply,
+          applyLine: action.applyLine ? wrapper.applyLine : undefined,
         };
       }
     }

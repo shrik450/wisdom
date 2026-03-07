@@ -11,6 +11,7 @@ import { searchPaths, type PathSearchResult } from "../api/search";
 import { buildWorkspaceHref } from "../path-utils";
 import { type ResolvedAction } from "../actions/action-model";
 import { useActions, type ActionSpec } from "../actions/action-registry";
+import type { KeyBindingDef } from "../keyboard/keybind-state-machine";
 import { useKeyboardNavContext } from "../keyboard/keyboard-nav";
 import {
   filterCommandActions,
@@ -19,6 +20,42 @@ import {
 
 const DEBOUNCE_MS = 150;
 const SEARCH_LIMIT = 20;
+const FORM_INPUT_SELECTOR = "input, textarea, select";
+
+export const defaultKeybinds: KeyBindingDef[] = [
+  {
+    mode: "normal",
+    keys: "Escape",
+    action: "palette.close",
+    scope: "palette",
+  },
+  { mode: "insert", keys: "Ctrl+n", action: "palette.next", scope: "palette" },
+  { mode: "insert", keys: "Ctrl+p", action: "palette.prev", scope: "palette" },
+  {
+    mode: "insert",
+    keys: "ArrowDown",
+    action: "palette.next",
+    scope: "palette",
+  },
+  {
+    mode: "insert",
+    keys: "ArrowUp",
+    action: "palette.prev",
+    scope: "palette",
+  },
+  {
+    mode: "insert",
+    keys: "Enter",
+    action: "palette.select",
+    scope: "palette",
+  },
+  {
+    mode: "insert",
+    keys: "Escape",
+    action: "palette.close",
+    scope: "palette",
+  },
+];
 
 interface PaletteItem {
   id: string;
@@ -86,6 +123,8 @@ export function CommandPalette({
   const debounceRef = useRef<number>(0);
   const listRef = useRef<HTMLDivElement>(null);
   const initializedOpenModeRef = useRef(false);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+  const insertPushedRef = useRef(false);
   const [, navigate] = useLocation();
 
   const isCommandMode = query.startsWith(">");
@@ -144,6 +183,11 @@ export function CommandPalette({
   }, []);
 
   useEffect(() => {
+    const active = document.activeElement;
+    previousFocusRef.current = active instanceof HTMLElement ? active : null;
+  }, []);
+
+  useEffect(() => {
     if (initializedOpenModeRef.current) {
       setQuery(openMode === "command" ? ">" : "");
     } else {
@@ -153,10 +197,23 @@ export function CommandPalette({
     inputRef.current?.focus();
   }, [openMode]);
 
-  // Return focus to the button that opened the palette on unmount.
   useEffect(() => {
     const trigger = triggerRef.current;
     return () => {
+      const active = document.activeElement;
+      if (
+        active instanceof HTMLElement &&
+        active.matches(FORM_INPUT_SELECTOR)
+      ) {
+        active.blur();
+      }
+
+      const previous = previousFocusRef.current;
+      if (previous && previous.isConnected) {
+        previous.focus();
+        return;
+      }
+
       trigger?.focus();
     };
   }, [triggerRef]);
@@ -192,7 +249,18 @@ export function CommandPalette({
     [onClose],
   );
 
-  const { setOverlayScope } = useKeyboardNavContext();
+  const { setOverlayScope, pushMode, popMode } = useKeyboardNavContext();
+
+  useEffect(() => {
+    insertPushedRef.current = true;
+    pushMode("insert");
+    return () => {
+      if (insertPushedRef.current) {
+        insertPushedRef.current = false;
+        popMode();
+      }
+    };
+  }, [popMode, pushMode]);
 
   useEffect(() => {
     setOverlayScope("palette");
@@ -209,7 +277,7 @@ export function CommandPalette({
           void count;
           setSelectedIndex((prev) => (prev + 1) % Math.max(items.length, 1));
         },
-        headerDisplay: "palette-only" as const,
+        headerDisplay: "palette-only",
       },
       {
         kind: "command",
@@ -223,7 +291,7 @@ export function CommandPalette({
               Math.max(items.length, 1),
           );
         },
-        headerDisplay: "palette-only" as const,
+        headerDisplay: "palette-only",
       },
       {
         kind: "command",
@@ -235,7 +303,7 @@ export function CommandPalette({
             selectItem(items[selectedIndex]);
           }
         },
-        headerDisplay: "palette-only" as const,
+        headerDisplay: "palette-only",
       },
       {
         kind: "command",
@@ -245,7 +313,7 @@ export function CommandPalette({
           void count;
           onClose();
         },
-        headerDisplay: "palette-only" as const,
+        headerDisplay: "palette-only",
       },
     ],
     [items, selectedIndex, selectItem, onClose],
@@ -300,6 +368,7 @@ export function CommandPalette({
           className={`w-full border border-bdr bg-surface px-4 py-3 text-sm text-txt shadow-xl transition-colors placeholder:text-txt-muted focus-visible:border-accent focus-visible:outline-none ${inputRounding}`}
           aria-label="Command palette"
           data-testid="command-palette-input"
+          data-kb-no-auto-insert="true"
         />
 
         {showResultsPanel && (
