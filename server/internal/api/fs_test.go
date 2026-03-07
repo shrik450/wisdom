@@ -165,6 +165,12 @@ func TestHead(t *testing.T) {
 	if err := ws.WriteFile("doc.txt", []byte("some content"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	if err := ws.MkdirAll("notes", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := ws.WriteFile("notes/a.md", []byte("# A"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	t.Run("returns headers without body", func(t *testing.T) {
 		resp := doRequest(t, "HEAD", srv.URL+"/api/fs/doc.txt", nil)
@@ -188,6 +194,30 @@ func TestHead(t *testing.T) {
 
 		if resp.StatusCode != 404 {
 			t.Fatalf("expected 404, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("directory probe returns dir content type without body", func(t *testing.T) {
+		resp := doRequest(t, "HEAD", srv.URL+"/api/fs/notes", nil)
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 200 {
+			t.Fatalf("expected 200, got %d", resp.StatusCode)
+		}
+		ct := resp.Header.Get("Content-Type")
+		mediaType, _, err := mime.ParseMediaType(ct)
+		if err != nil {
+			t.Fatalf("invalid content-type %q: %v", ct, err)
+		}
+		if mediaType != "application/vnd.wisdom.dirlist+json" {
+			t.Fatalf("expected directory content-type, got %q", ct)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		if len(body) != 0 {
+			t.Fatalf("expected empty body for HEAD, got %d bytes", len(body))
+		}
+		if resp.Header.Get("Last-Modified") == "" {
+			t.Fatal("expected Last-Modified header")
 		}
 	})
 }

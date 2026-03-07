@@ -41,6 +41,25 @@ function Contributor({
   return null;
 }
 
+function OperatorContributor({ stamp }: { stamp: number }) {
+  useActions([
+    {
+      kind: "operator",
+      id: "operator",
+      label: "Operator",
+      apply: (range) => {
+        void range;
+        void stamp;
+      },
+      applyLine: (count) => {
+        void count;
+        void stamp;
+      },
+    },
+  ]);
+  return null;
+}
+
 function SnapshotObserver({
   onSnapshot,
 }: {
@@ -143,6 +162,48 @@ test("useActions updates do not churn registration order", async () => {
     latest.map((action) => action.registrationOrder),
     [0, 1],
   );
+
+  await act(async () => {
+    renderer.unmount();
+  });
+});
+
+test("useActions with operator applyLine does not loop on rerender", async () => {
+  let snapshots = 0;
+
+  const renderer = await renderWithAct(
+    createElement(
+      ActionRegistryProvider,
+      null,
+      createElement(OperatorContributor, { stamp: 0 }),
+      createElement(SnapshotObserver, {
+        onSnapshot: () => {
+          snapshots += 1;
+          if (snapshots > 20) {
+            throw new Error("unexpected rerender loop");
+          }
+        },
+      }),
+    ),
+  );
+
+  await act(async () => {
+    renderer.update(
+      createElement(
+        ActionRegistryProvider,
+        null,
+        createElement(OperatorContributor, { stamp: 1 }),
+        createElement(SnapshotObserver, {
+          onSnapshot: () => {
+            snapshots += 1;
+            if (snapshots > 20) {
+              throw new Error("unexpected rerender loop");
+            }
+          },
+        }),
+      ),
+    );
+  });
 
   await act(async () => {
     renderer.unmount();

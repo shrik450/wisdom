@@ -39,7 +39,9 @@ file into the workspace destination.
 This exception exists so the destination path is not touched until the upload
 is complete, which avoids partial files in the workspace on write failures.
 Only this temporary staging file is created outside the workspace, and it is
-removed on failure or after a successful rename.
+removed on failure or after a successful rename. If that final rename would
+cross filesystems, Wisdom falls back to a second temp file in the destination
+directory and renames that into place instead.
 
 ### Known Degradation: Path Search and Symlinks
 

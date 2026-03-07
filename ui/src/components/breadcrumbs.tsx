@@ -324,7 +324,7 @@ export function Breadcrumbs() {
       </button>
       {createError && (
         <p
-          className="hidden max-w-56 truncate text-xs text-red-600 md:block"
+          className="max-w-32 truncate text-xs text-red-600 sm:max-w-56"
           data-testid="breadcrumb-create-error"
         >
           {createError}
@@ -332,7 +332,7 @@ export function Breadcrumbs() {
       )}
       {deleteError && (
         <p
-          className="hidden max-w-56 truncate text-xs text-red-600 md:block"
+          className="max-w-32 truncate text-xs text-red-600 sm:max-w-56"
           data-testid="breadcrumb-delete-error"
         >
           {deleteError}

@@ -322,21 +322,6 @@ export function dispatch(
   let hasPrefix = false;
 
   if (state.pendingOperator) {
-    if (
-      state.pendingKeys.length === 0 &&
-      eventMatchesStep(event, state.pendingOperator.key)
-    ) {
-      const combinedCount = multiplyCount(state.pendingOperator.count, state.count);
-      return {
-        nextState: initialState(),
-        result: {
-          type: "execute-operator-line",
-          operator: state.pendingOperator.action,
-          count: combinedCount,
-        },
-      };
-    }
-
     const motionMatches = collectKindMatches(
       state.pendingKeys,
       event,
@@ -355,7 +340,26 @@ export function dispatch(
     selectedFullMatch = motionMatches.full ?? commandMatches.full;
     hasPrefix = motionMatches.hasPrefix || commandMatches.hasPrefix;
 
-    if (!selectedFullMatch && !hasPrefix) {
+    if (selectedFullMatch || hasPrefix) {
+      // Explicit motion/command sequences take precedence over the implicit
+      // doubled-operator line action.
+    } else if (
+      state.pendingKeys.length === 0 &&
+      eventMatchesStep(event, state.pendingOperator.key)
+    ) {
+      const combinedCount = multiplyCount(
+        state.pendingOperator.count,
+        state.count,
+      );
+      return {
+        nextState: initialState(),
+        result: {
+          type: "execute-operator-line",
+          operator: state.pendingOperator.action,
+          count: combinedCount,
+        },
+      };
+    } else {
       return {
         nextState: initialState(),
         result: { type: "reset", preventDefault: false },

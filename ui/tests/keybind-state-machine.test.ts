@@ -209,6 +209,19 @@ test("doubled-operator command executes as command", () => {
   assert.equal(result.result.type, "execute-command");
 });
 
+test("doubled-operator falls back to operator-line when no command matches", () => {
+  const bindings: KeyBindingDef[] = [
+    { mode: "normal", keys: "d", action: "op.d" },
+  ];
+  const actions: ResolvedAction[] = [operatorAction("op.d")];
+
+  let state = initialState();
+  state = step(state, key("d"), bindings, actions).nextState;
+  const result = step(state, key("d"), bindings, actions);
+
+  assert.equal(result.result.type, "execute-operator-line");
+});
+
 test("operator pending resets on Escape or unknown key", () => {
   const bindings: KeyBindingDef[] = [
     { mode: "normal", keys: "d", action: "op.d" },

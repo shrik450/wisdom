@@ -34,8 +34,10 @@ func mapError(w http.ResponseWriter, err error) {
 func fsHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
-		case http.MethodGet, http.MethodHead:
+		case http.MethodGet:
 			handleGet(w, r)
+		case http.MethodHead:
+			handleHead(w, r)
 		case http.MethodPut:
 			handlePut(w, r)
 		case http.MethodDelete:
@@ -80,37 +82,9 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if info.IsDir() {
-		entries, err := ws.ReadDir(p)
-		if err != nil {
+		if err := writeDirectoryResponse(w, ws, p, info); err != nil {
 			mapError(w, err)
-			return
 		}
-
-		result := make([]dirEntry, 0, len(entries))
-		for _, e := range entries {
-			eInfo, err := e.Info()
-			if err != nil {
-				mapError(w, err)
-				return
-			}
-			result = append(result, dirEntry{
-				Name:    e.Name(),
-				Size:    eInfo.Size(),
-				ModTime: eInfo.ModTime(),
-				IsDir:   e.IsDir(),
-			})
-		}
-
-		data, err := json.Marshal(result)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		// Vendor MIME type so the frontend can distinguish directory listings from
-		// regular JSON files. Without this, a .json file whose content happens to
-		// match the DirEntry[] shape would be misclassified as a directory.
-		w.Header().Set("Content-Type", "application/vnd.wisdom.dirlist+json")
-		w.Write(data)
 		return
 	}
 
@@ -122,6 +96,76 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 	defer f.Close()
 
 	http.ServeContent(w, r, info.Name(), info.ModTime(), f)
+}
+
+func handleHead(w http.ResponseWriter, r *http.Request) {
+	ws := workspace.FromContext(r.Context())
+	p := fsPath(r)
+
+	info, err := ws.Stat(p)
+	if err != nil {
+		mapError(w, err)
+		return
+	}
+
+	if info.IsDir() {
+		writeDirectoryHeaders(w, info)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	f, err := ws.Open(p)
+	if err != nil {
+		mapError(w, err)
+		return
+	}
+	defer f.Close()
+
+	http.ServeContent(w, r, info.Name(), info.ModTime(), f)
+}
+
+func writeDirectoryHeaders(w http.ResponseWriter, info os.FileInfo) {
+	// Vendor MIME type so the frontend can distinguish directory listings from
+	// regular JSON files. Without this, a .json file whose content happens to
+	// match the DirEntry[] shape would be misclassified as a directory.
+	w.Header().Set("Content-Type", "application/vnd.wisdom.dirlist+json")
+	w.Header().Set("Last-Modified", info.ModTime().UTC().Format(http.TimeFormat))
+}
+
+func writeDirectoryResponse(
+	w http.ResponseWriter,
+	ws *workspace.Workspace,
+	path string,
+	info os.FileInfo,
+) error {
+	entries, err := ws.ReadDir(path)
+	if err != nil {
+		return err
+	}
+
+	result := make([]dirEntry, 0, len(entries))
+	for _, e := range entries {
+		eInfo, err := e.Info()
+		if err != nil {
+			return err
+		}
+		result = append(result, dirEntry{
+			Name:    e.Name(),
+			Size:    eInfo.Size(),
+			ModTime: eInfo.ModTime(),
+			IsDir:   e.IsDir(),
+		})
+	}
+
+	data, err := json.Marshal(result)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return nil
+	}
+
+	writeDirectoryHeaders(w, info)
+	w.Write(data)
+	return nil
 }
 
 func handlePut(w http.ResponseWriter, r *http.Request) {

@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"syscall"
 )
 
 var (
@@ -34,6 +35,9 @@ var (
 	defaultWorkspace *Workspace
 	defaultWsOnce    sync.Once
 	defaultErr       error
+
+	createTemp = os.CreateTemp
+	renameFile = os.Rename
 )
 
 // Default returns the workspace defined by the WISDOM_WORKSPACE_ROOT env var,
@@ -100,14 +104,16 @@ func (w *Workspace) WriteFile(name string, data []byte, perm fs.FileMode) error 
 // regardless of file size and avoids leaving partial files on failure.
 // The temporary file is intentionally created in the system temp directory
 // outside the workspace so the destination directory is not touched until the
-// file is fully written.
+// file is fully written. If the final rename crosses filesystems, it falls
+// back to a second temp file in the destination directory and renames that
+// into place.
 func (w *Workspace) WriteStream(name string, r io.Reader, perm fs.FileMode) error {
 	p, err := w.resolve(name)
 	if err != nil {
 		return err
 	}
 
-	tmp, err := os.CreateTemp("", ".wisdom-tmp-*")
+	tmp, err := createTemp("", ".wisdom-tmp-*")
 	if err != nil {
 		return err
 	}
@@ -130,10 +136,52 @@ func (w *Workspace) WriteStream(name string, r io.Reader, perm fs.FileMode) erro
 		return err
 	}
 
-	if err := os.Rename(tmpName, p); err != nil {
-		return err
+	if err := renameFile(tmpName, p); err != nil {
+		if !errors.Is(err, syscall.EXDEV) {
+			return err
+		}
+		if err := moveTempFileAcrossFilesystems(tmpName, p, perm); err != nil {
+			return err
+		}
 	}
 	tmpName = "" // prevent deferred cleanup
+	return nil
+}
+
+func moveTempFileAcrossFilesystems(src, dst string, perm fs.FileMode) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	tmp, err := createTemp(filepath.Dir(dst), ".wisdom-tmp-*")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer func() {
+		if tmpName != "" {
+			os.Remove(tmpName)
+		}
+	}()
+
+	if _, err := io.Copy(tmp, in); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Chmod(perm); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+
+	if err := renameFile(tmpName, dst); err != nil {
+		return err
+	}
+	tmpName = ""
 	return nil
 }
 
