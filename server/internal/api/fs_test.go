@@ -20,10 +20,11 @@ import (
 )
 
 type dirEntry struct {
-	Name    string    `json:"name"`
-	Size    int64     `json:"size"`
-	ModTime time.Time `json:"modTime"`
-	IsDir   bool      `json:"isDir"`
+	Name         string    `json:"name"`
+	Size         int64     `json:"size"`
+	ModTime      time.Time `json:"modTime"`
+	IsDir        bool      `json:"isDir"`
+	IsExecutable bool      `json:"isExecutable"`
 }
 
 func newTestServer(t *testing.T) (*httptest.Server, *workspace.Workspace) {
@@ -32,7 +33,7 @@ func newTestServer(t *testing.T) (*httptest.Server, *workspace.Workspace) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler := middleware.WithWorkspace(api.APIHandler(), ws)
+	handler := middleware.WithWorkspace(api.APIHandler(api.HandlerOptions{}), ws)
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
 	return srv, ws
@@ -85,6 +86,30 @@ func TestGet(t *testing.T) {
 		if !strings.HasPrefix(ct, "text/plain") {
 			t.Fatalf("expected text/plain content-type, got %q", ct)
 		}
+	})
+
+	t.Run("directory listing includes executable metadata", func(t *testing.T) {
+		if err := ws.WriteFile("tool.sh", []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+
+		resp := doRequest(t, "GET", srv.URL+"/api/fs/", nil)
+		defer resp.Body.Close()
+
+		var entries []dirEntry
+		if err := json.NewDecoder(resp.Body).Decode(&entries); err != nil {
+			t.Fatal(err)
+		}
+
+		for _, entry := range entries {
+			if entry.Name == "tool.sh" {
+				if !entry.IsExecutable {
+					t.Fatal("expected tool.sh to be marked executable")
+				}
+				return
+			}
+		}
+		t.Fatal("tool.sh missing from directory listing")
 	})
 
 	t.Run("list directory", func(t *testing.T) {
@@ -185,6 +210,19 @@ func TestHead(t *testing.T) {
 		}
 		if resp.Header.Get("Content-Type") == "" {
 			t.Fatal("expected Content-Type header")
+		}
+	})
+
+	t.Run("returns executable header for files", func(t *testing.T) {
+		if err := ws.WriteFile("script.sh", []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+
+		resp := doRequest(t, "HEAD", srv.URL+"/api/fs/script.sh", nil)
+		defer resp.Body.Close()
+
+		if got := resp.Header.Get("X-Wisdom-Is-Executable"); got != "true" {
+			t.Fatalf("expected executable header true, got %q", got)
 		}
 	})
 
@@ -372,6 +410,19 @@ func TestDelete(t *testing.T) {
 		}
 
 		resp := doRequest(t, "DELETE", srv.URL+"/api/fs/ui", strings.NewReader(`{"force":false}`))
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 400 {
+			t.Fatalf("expected 400, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("delete .wisdom requires force", func(t *testing.T) {
+		if err := ws.MkdirAll(".wisdom/runs", 0o755); err != nil {
+			t.Fatal(err)
+		}
+
+		resp := doRequest(t, "DELETE", srv.URL+"/api/fs/.wisdom", strings.NewReader(`{"force":false}`))
 		defer resp.Body.Close()
 
 		if resp.StatusCode != 400 {
@@ -686,5 +737,36 @@ func TestPutPathTraversal(t *testing.T) {
 	}
 	if _, err := os.Stat(sentinel); err == nil {
 		t.Fatal("path traversal wrote a file outside the workspace")
+	}
+}
+
+func TestGetRange(t *testing.T) {
+	srv, ws := newTestServer(t)
+
+	if err := ws.WriteFile("log.txt", []byte("0123456789"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/fs/log.txt", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Range", "bytes=4-7")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusPartialContent {
+		t.Fatalf("expected 206, got %d", resp.StatusCode)
+	}
+	if got := resp.Header.Get("Content-Range"); got != "bytes 4-7/10" {
+		t.Fatalf("unexpected content range %q", got)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	if string(body) != "4567" {
+		t.Fatalf("expected partial body 4567, got %q", body)
 	}
 }

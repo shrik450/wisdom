@@ -33,6 +33,7 @@ import {
   ShrinkIcon,
 } from "./icons";
 import { SidebarNav } from "./sidebar";
+import { ChromeButton, CHROME_BUTTON_CLASSES } from "./chrome-button";
 import { shellReducer, type PaletteMode, type ShellState } from "./shell-state";
 import {
   KeyboardNavContext,
@@ -53,9 +54,7 @@ const FOCUSABLE_SELECTOR = [
   '[tabindex]:not([tabindex="-1"])',
 ].join(", ");
 const HEADER_ACTION_GAP_PX = 8;
-const HEADER_ACTION_BUTTON_CLASSES =
-  "inline-flex h-8 shrink-0 items-center rounded-md border border-bdr bg-surface px-3 text-sm leading-none text-txt transition-colors hover:border-bdr hover:bg-surface-raised focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50";
-
+const HEADER_ACTION_BUTTON_CLASSES = CHROME_BUTTON_CLASSES;
 function readFullscreenPref(): boolean {
   try {
     return localStorage.getItem(FULLSCREEN_KEY) === "true";
@@ -81,25 +80,18 @@ function getFocusableElements(container: HTMLElement): HTMLElement[] {
   });
 }
 
-interface ShellHeaderActionButtonProps
-  extends Omit<ComponentPropsWithoutRef<"button">, "children"> {
-  children: ReactNode;
-}
-
 function ShellHeaderActionButton({
   children,
   className = "",
   type = "button",
   ...props
-}: ShellHeaderActionButtonProps) {
+}: Omit<ComponentPropsWithoutRef<"button">, "children"> & {
+  children: ReactNode;
+}) {
   return (
-    <button
-      {...props}
-      type={type}
-      className={`${HEADER_ACTION_BUTTON_CLASSES} ${className}`}
-    >
+    <ChromeButton {...props} type={type} className={className}>
       {children}
-    </button>
+    </ChromeButton>
   );
 }
 

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,11 +15,14 @@ import (
 )
 
 type dirEntry struct {
-	Name    string    `json:"name"`
-	Size    int64     `json:"size"`
-	ModTime time.Time `json:"modTime"`
-	IsDir   bool      `json:"isDir"`
+	Name         string    `json:"name"`
+	Size         int64     `json:"size"`
+	ModTime      time.Time `json:"modTime"`
+	IsDir        bool      `json:"isDir"`
+	IsExecutable bool      `json:"isExecutable"`
 }
+
+const executableHeader = "X-Wisdom-Is-Executable"
 
 func mapError(w http.ResponseWriter, err error) {
 	switch {
@@ -68,7 +72,7 @@ func normalizePath(p string) string {
 }
 
 func isProtectedPath(p string) bool {
-	return p == "." || p == "ui"
+	return p == "." || p == "ui" || p == ".wisdom"
 }
 
 func handleGet(w http.ResponseWriter, r *http.Request) {
@@ -94,6 +98,7 @@ func handleGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer f.Close()
+	writeExecutableHeader(w, info)
 
 	http.ServeContent(w, r, info.Name(), info.ModTime(), f)
 }
@@ -120,8 +125,13 @@ func handleHead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer f.Close()
+	writeExecutableHeader(w, info)
 
 	http.ServeContent(w, r, info.Name(), info.ModTime(), f)
+}
+
+func writeExecutableHeader(w http.ResponseWriter, info os.FileInfo) {
+	w.Header().Set(executableHeader, strconv.FormatBool(workspace.IsExecutable(info.Mode())))
 }
 
 func writeDirectoryHeaders(w http.ResponseWriter, info os.FileInfo) {
@@ -150,10 +160,11 @@ func writeDirectoryResponse(
 			return err
 		}
 		result = append(result, dirEntry{
-			Name:    e.Name(),
-			Size:    eInfo.Size(),
-			ModTime: eInfo.ModTime(),
-			IsDir:   e.IsDir(),
+			Name:         e.Name(),
+			Size:         eInfo.Size(),
+			ModTime:      eInfo.ModTime(),
+			IsDir:        e.IsDir(),
+			IsExecutable: workspace.IsExecutable(eInfo.Mode()),
 		})
 	}
 
@@ -289,11 +300,16 @@ func handlePatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	writeDirEntryResponse(w, info)
+}
+
+func writeDirEntryResponse(w http.ResponseWriter, info os.FileInfo) {
 	entry := dirEntry{
-		Name:    info.Name(),
-		Size:    info.Size(),
-		ModTime: info.ModTime(),
-		IsDir:   info.IsDir(),
+		Name:         info.Name(),
+		Size:         info.Size(),
+		ModTime:      info.ModTime(),
+		IsDir:        info.IsDir(),
+		IsExecutable: workspace.IsExecutable(info.Mode()),
 	}
 
 	data, err := json.Marshal(entry)

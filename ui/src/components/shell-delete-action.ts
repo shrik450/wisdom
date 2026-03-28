@@ -1,6 +1,6 @@
 import { type WorkspaceEntryInfo } from "../workspace-entry-info";
 
-const PROTECTED_DELETE_PATHS = new Set(["", "ui"]);
+const PROTECTED_DELETE_PATHS = new Set(["", "ui", ".wisdom"]);
 
 export const SHELL_DELETE_ACTION_ID = "shell.delete-current";
 

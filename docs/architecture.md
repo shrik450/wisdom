@@ -20,8 +20,10 @@ The backend server is written in Go and has the following responsibilities:
    workspace root.
 4. It runs the indexing system, exposes HTTP APIs for searching, and is
    configured by `indexing.toml` in the root.
-5. It provides the runner system via HTTP APIs, and exposes runs and logs via
-   the API as well.
+5. It provides the runner system via HTTP control APIs. Runs themselves are a
+   weak file-backed model rooted at `.wisdom/runs/`: the live child process is
+   kept in memory, while `request.json`, `state.json` and `output.log` are the
+   durable surface that the UI and filesystem APIs read.
 6. Finally, it serves the ui stored in the `ui` folder via the `ui/index.html`,
    and has esbuild as a dependency to watch and build on any changes in the
    `ui` directory.
@@ -50,6 +52,27 @@ entries whose targets resolve outside the workspace root. Those entries may
 appear in command palette results but fail to open through normal filesystem
 APIs, because those APIs enforce workspace boundary checks during resolution.
 This is currently an accepted UX degradation.
+
+### Execution Model
+
+Run creation and cancellation happen through dedicated control endpoints, but
+run inspection stays on the generic filesystem surface.
+
+Each run is materialized as a directory under `.wisdom/runs/<run-id>/`:
+
+1. `request.json` stores the immutable invocation request.
+2. `state.json` stores lifecycle state and terminal result.
+3. `output.log` stores the append-only interleaved stdout/stderr stream.
+
+The backend supervises active child processes in memory, terminates them on
+shutdown, and writes terminal state back to `state.json` before discarding
+supervision state. Wisdom does not attempt to reattach to orphaned processes on
+restart.
+
+The filesystem API exposes executable metadata for files and preserves HTTP
+range semantics for normal file reads. The UI uses those generic capabilities to
+show `Run` actions on executable files and to tail `output.log` without a
+run-specific log endpoint.
 
 ## Frontend
 

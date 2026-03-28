@@ -13,6 +13,10 @@ function entry(info: Partial<WorkspaceEntryInfo>): WorkspaceEntryInfo {
     name: "",
     parentPath: "",
     extension: null,
+    contentType: null,
+    size: null,
+    lastModified: null,
+    isExecutable: false,
     ...info,
   };
 }
@@ -63,6 +67,18 @@ test("canDeleteWorkspaceEntry rejects protected paths and non-existing entries",
         name: "ui",
       }),
       "ui",
+    ),
+    false,
+  );
+
+  assert.equal(
+    canDeleteWorkspaceEntry(
+      entry({
+        kind: "directory",
+        path: ".wisdom",
+        name: ".wisdom",
+      }),
+      ".wisdom",
     ),
     false,
   );

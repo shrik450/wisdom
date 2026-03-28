@@ -225,6 +225,54 @@ func TestFileOperations(t *testing.T) {
 		}
 	})
 
+	t.Run("WriteStream preserves executable bit on overwrite", func(t *testing.T) {
+		if err := ws.WriteFile("tool.sh", []byte("#!/bin/sh\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := ws.WriteStream("tool.sh", strings.NewReader("#!/bin/sh\necho hi\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		info, err := ws.Stat("tool.sh")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !workspace.IsExecutable(info.Mode()) {
+			t.Fatal("expected executable bit to be preserved")
+		}
+	})
+
+	t.Run("WriteFile preserves executable bit on overwrite", func(t *testing.T) {
+		if err := ws.WriteFile("tool-write.sh", []byte("#!/bin/sh\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := ws.WriteFile("tool-write.sh", []byte("#!/bin/sh\necho updated\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		info, err := ws.Stat("tool-write.sh")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !workspace.IsExecutable(info.Mode()) {
+			t.Fatal("expected executable bit to be preserved")
+		}
+	})
+
+	t.Run("new files still use requested mode", func(t *testing.T) {
+		if err := ws.WriteStream("fresh.txt", strings.NewReader("fresh"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		info, err := ws.Stat("fresh.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Mode().Perm() != 0o644 {
+			t.Fatalf("got mode %o, want 644", info.Mode().Perm())
+		}
+	})
+
 	t.Run("WriteStream with traversal path", func(t *testing.T) {
 		err := ws.WriteStream("../../escape.txt", strings.NewReader("bad"), 0o644)
 		if !errors.Is(err, workspace.ErrOutsideWorkspace) {
