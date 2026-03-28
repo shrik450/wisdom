@@ -13,7 +13,9 @@ Powering Wisdom is a very flexible core:
 1. A regular file hierarchy: your Wisdom workspace, including all of your
    content, is just files on a filesystem, served by the Wisdom server.
 2. Runner: Wisdom can _run_ scripts or binaries in the Wisdom workspace. These
-   can be any executable files, so you can write these in any language.
+   can be any executable files, so you can write these in any language. Runs are
+   file-backed artifacts under `.wisdom/runs/`, with `request.json`,
+   `state.json` and `output.log` stored in the workspace itself.
 3. Watches: Wisdom can watch a folder and run your code when a file is created,
    modified or deleted.
 4. Cron: Wisdom comes with a crontab implementation so you can run your code
@@ -43,6 +45,10 @@ Download a binary for your platform from GitHub releases and run it with the
 `WISDOM_WORKSPACE_ROOT` environment variable set. That's all you need -  all
 further configuration is optional and will live in the workspace as a TOML
 file.
+
+Run history is stored in `.wisdom/runs/`. The UI reads run state and logs using
+the normal filesystem APIs and viewers, so you can inspect runs either through
+the dedicated run views or by opening the underlying files directly.
 
 ## Non-goals
 
