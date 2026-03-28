@@ -99,11 +99,11 @@ func main() {
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if err := runManager.Shutdown(shutdownCtx); err != nil && err != context.Canceled && err != context.DeadlineExceeded {
-		logger.Error("run manager shutdown error", "err", err)
-	}
-	shutdownErr := server.Shutdown(context.Background())
+	shutdownErr := server.Shutdown(shutdownCtx)
 	if shutdownErr != nil {
 		logger.Error("shutdown error", "err", shutdownErr)
+	}
+	if err := runManager.Shutdown(shutdownCtx); err != nil && err != context.Canceled && err != context.DeadlineExceeded {
+		logger.Error("run manager shutdown error", "err", err)
 	}
 }

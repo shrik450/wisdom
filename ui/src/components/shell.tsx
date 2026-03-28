@@ -89,11 +89,7 @@ function ShellHeaderActionButton({
   children: ReactNode;
 }) {
   return (
-    <ChromeButton
-      {...props}
-      type={type}
-      className={className}
-    >
+    <ChromeButton {...props} type={type} className={className}>
       {children}
     </ChromeButton>
   );

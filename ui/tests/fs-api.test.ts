@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFileRange } from "../src/api/fs.ts";
+import { headFile, readFileRange } from "../src/api/fs.ts";
 
 test("readFileRange sends a Range header and parses the response", async () => {
   const previousFetch = globalThis.fetch;
@@ -42,6 +42,26 @@ test("readFileRange supports suffix requests", async () => {
   try {
     await readFileRange("logs/output.log", { suffixLength: 128 });
     assert.equal(seenRange, "bytes=-128");
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test("headFile reads content length from HEAD responses", async () => {
+  const previousFetch = globalThis.fetch;
+
+  globalThis.fetch = (async () => {
+    return new Response(null, {
+      status: 200,
+      headers: {
+        "Content-Length": "42",
+      },
+    });
+  }) as typeof fetch;
+
+  try {
+    const result = await headFile("logs/output.log");
+    assert.equal(result.contentLength, 42);
   } finally {
     globalThis.fetch = previousFetch;
   }

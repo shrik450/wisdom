@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useActions, type ActionSpec } from "../actions/action-registry";
-import { listDir, readFile, readFileRange } from "../api/fs";
+import { headFile, listDir, readFile, readFileRange } from "../api/fs";
 import { cancelRun } from "../api/runs";
-import { ChromeButton, CHROME_BUTTON_CLASSES } from "../components/chrome-button";
+import {
+  ChromeButton,
+  CHROME_BUTTON_CLASSES,
+} from "../components/chrome-button";
 import { ContentFrame } from "../components/content-frame";
 import { StatusChip } from "../components/status-chip";
 import {
@@ -110,6 +113,7 @@ function useRunLog(path: string, active: boolean): AsyncResult<string> {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const nextOffsetRef = useRef<number>(0);
+  const knownSizeRef = useRef<number | null>(null);
   const initialLoadRef = useRef(true);
   const [tick, setTick] = useState(0);
 
@@ -122,6 +126,7 @@ function useRunLog(path: string, active: boolean): AsyncResult<string> {
     setLoading(true);
     setError(null);
     nextOffsetRef.current = 0;
+    knownSizeRef.current = null;
     initialLoadRef.current = true;
     setTick((value) => value + 1);
   }, [path]);
@@ -130,6 +135,23 @@ function useRunLog(path: string, active: boolean): AsyncResult<string> {
     const controller = new AbortController();
 
     const load = async () => {
+      if (
+        !initialLoadRef.current &&
+        knownSizeRef.current !== null &&
+        nextOffsetRef.current >= knownSizeRef.current
+      ) {
+        const metadata = await headFile(path, controller.signal);
+        knownSizeRef.current = metadata.contentLength;
+        if (
+          metadata.contentLength === null ||
+          nextOffsetRef.current >= metadata.contentLength
+        ) {
+          setLoading(false);
+          setError(null);
+          return;
+        }
+      }
+
       const response = await readFileRange(
         path,
         initialLoadRef.current
@@ -138,9 +160,10 @@ function useRunLog(path: string, active: boolean): AsyncResult<string> {
         controller.signal,
       );
 
+      const contentRangeEnd = parseContentRangeEnd(response.contentRange);
       const nextOffset =
-        parseContentRangeEnd(response.contentRange) !== null
-          ? (parseContentRangeEnd(response.contentRange) ?? 0) + 1
+        contentRangeEnd !== null
+          ? contentRangeEnd + 1
           : nextOffsetRef.current + response.byteLength;
 
       if (initialLoadRef.current || response.status === 200) {
@@ -150,6 +173,8 @@ function useRunLog(path: string, active: boolean): AsyncResult<string> {
       }
 
       nextOffsetRef.current = nextOffset;
+      knownSizeRef.current =
+        contentRangeEnd !== null ? nextOffset : response.contentLength;
       initialLoadRef.current = false;
       setLoading(false);
       setError(null);
@@ -211,10 +236,7 @@ function RunDirectoryViewer({ path }: ViewerProps) {
     parseRunStateRecord,
   );
   const isActiveRun = state.data ? isActiveRunStatus(state.data.status) : false;
-  const log = useRunLog(
-    outputPath,
-    isActiveRun,
-  );
+  const log = useRunLog(outputPath, isActiveRun);
 
   useEffect(() => {
     if (!isActiveRun) {
@@ -320,7 +342,9 @@ function RunDirectoryViewer({ path }: ViewerProps) {
       </dl>
 
       <div className="mt-4 flex flex-wrap gap-3 text-sm">
-        <ChromeButton onClick={() => navigate(buildWorkspaceHref(".wisdom/runs"))}>
+        <ChromeButton
+          onClick={() => navigate(buildWorkspaceHref(".wisdom/runs"))}
+        >
           Open history
         </ChromeButton>
         <Link
@@ -530,7 +554,9 @@ function RunsDirectoryViewer({ path }: ViewerProps) {
                   </Link>
                 </td>
                 <td className="py-2 pr-4 text-txt-muted">
-                  {formatTimestamp(run.state.startedAt ?? run.request.createdAt)}
+                  {formatTimestamp(
+                    run.state.startedAt ?? run.request.createdAt,
+                  )}
                 </td>
                 <td className="py-2 text-txt-muted">
                   {formatRunClockLabel(run.state)}

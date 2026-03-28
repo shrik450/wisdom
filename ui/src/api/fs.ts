@@ -15,6 +15,10 @@ export interface FileRangeResponse {
   contentLength: number | null;
 }
 
+export interface FileHeadResponse {
+  contentLength: number | null;
+}
+
 function fsMkdirUrl(path: string): string {
   return `${buildFsApiUrl(path)}?mkdir`;
 }
@@ -42,6 +46,17 @@ export async function readFile(
   const res = await fetch(buildFsApiUrl(path), { signal });
   await checkResponse(res);
   return res.text();
+}
+
+export async function headFile(
+  path: string,
+  signal?: AbortSignal,
+): Promise<FileHeadResponse> {
+  const res = await fetch(buildFsApiUrl(path), { method: "HEAD", signal });
+  await checkResponse(res);
+  return {
+    contentLength: parseContentLength(res.headers.get("Content-Length")),
+  };
 }
 
 function buildRangeHeader(range: FileRangeRequest): string | null {

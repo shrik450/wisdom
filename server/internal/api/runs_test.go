@@ -263,3 +263,23 @@ func TestRunManagerShutdownFinalizesActiveRuns(t *testing.T) {
 		t.Fatalf("expected shutdown to finalize run, got %+v", state)
 	}
 }
+
+func TestCreateRunRejectedWhileManagerShuttingDown(t *testing.T) {
+	srv, ws, manager := newRunTestServer(t, runs.ManagerOptions{})
+	writeExecutable(t, ws, "script.sh", "#!/bin/sh\nexit 0\n")
+
+	if err := manager.Shutdown(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	body, err := json.Marshal(runs.CreateRequest{Path: "script.sh"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp := doRequest(t, http.MethodPost, srv.URL+"/api/runs", bytes.NewReader(body))
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d", resp.StatusCode)
+	}
+}

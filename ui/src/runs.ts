@@ -57,7 +57,9 @@ function readNullableString(value: unknown, field: string): string | null {
 
 function readStringArray(value: unknown, field: string): string[] {
   if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
-    throw new Error(`invalid run artifact: ${field} must be an array of strings`);
+    throw new Error(
+      `invalid run artifact: ${field} must be an array of strings`,
+    );
   }
   return [...value];
 }

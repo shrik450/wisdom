@@ -38,6 +38,7 @@ var (
 	ErrPathIsDirectory   = errors.New("path must be a file")
 	ErrCwdNotFound       = errors.New("cwd does not exist")
 	ErrCwdNotDirectory   = errors.New("cwd must be a directory")
+	ErrShuttingDown      = errors.New("run manager is shutting down")
 	ErrRunNotFound       = errors.New("run not found")
 )
 
@@ -100,6 +101,10 @@ type Manager struct {
 
 	mu     sync.Mutex
 	active map[string]*activeRun
+	cond   *sync.Cond
+
+	stopping        bool
+	inflightCreates int
 }
 
 type activeRun struct {
@@ -128,16 +133,23 @@ func NewManager(ws *workspace.Workspace, opts ManagerOptions) *Manager {
 	if genID == nil {
 		genID = defaultGenerateID
 	}
-	return &Manager{
+	m := &Manager{
 		ws:                ws,
 		cancelGracePeriod: grace,
 		now:               now,
 		generateID:        genID,
 		active:            make(map[string]*activeRun),
 	}
+	m.cond = sync.NewCond(&m.mu)
+	return m
 }
 
 func (m *Manager) Create(_ context.Context, req CreateRequest) (CreateResult, error) {
+	if err := m.beginCreate(); err != nil {
+		return CreateResult{}, err
+	}
+	defer m.endCreate()
+
 	normalizedPath, err := normalizeRelativePath(req.Path, false)
 	if err != nil {
 		return CreateResult{}, err
@@ -309,6 +321,10 @@ func (m *Manager) Cancel(runID string) error {
 
 func (m *Manager) Shutdown(ctx context.Context) error {
 	m.mu.Lock()
+	m.stopping = true
+	for m.inflightCreates > 0 {
+		m.cond.Wait()
+	}
 	active := make([]*activeRun, 0, len(m.active))
 	for _, run := range m.active {
 		active = append(active, run)
@@ -330,6 +346,23 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (m *Manager) beginCreate() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.stopping {
+		return ErrShuttingDown
+	}
+	m.inflightCreates++
+	return nil
+}
+
+func (m *Manager) endCreate() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.inflightCreates--
+	m.cond.Broadcast()
 }
 
 func (m *Manager) waitForExit(active *activeRun, statePath string) {

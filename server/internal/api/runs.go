@@ -71,6 +71,8 @@ func mapRunError(w http.ResponseWriter, err error) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 	case errors.Is(err, runs.ErrRunNotFound):
 		http.Error(w, err.Error(), http.StatusNotFound)
+	case errors.Is(err, runs.ErrShuttingDown):
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 	default:
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
