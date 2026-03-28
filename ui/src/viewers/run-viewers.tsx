@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useActions, type ActionSpec } from "../actions/action-registry";
 import { headFile, listDir, readFile, readFileRange } from "../api/fs";
+import type { DirEntry } from "../api/types";
 import { cancelRun } from "../api/runs";
 import {
   ChromeButton,
@@ -407,21 +408,18 @@ function useRunsDirectory(
     const load = async () => {
       const entries = await listDir(path, controller.signal);
       const runEntries = entries.filter((entry) => entry.isDir);
-      const summaries = await Promise.all(
-        runEntries.map(async (entry) => {
-          const [requestContent, stateContent] = await Promise.all([
-            readFile(`${path}/${entry.name}/request.json`, controller.signal),
-            readFile(`${path}/${entry.name}/state.json`, controller.signal),
-          ]);
-          return summarizeRunDirectory(
-            entry,
-            parseRunRequestRecord(JSON.parse(requestContent)),
-            parseRunStateRecord(JSON.parse(stateContent)),
-          );
-        }),
+      const summaries = await Promise.allSettled(
+        runEntries.map((entry) =>
+          loadRunSummary(path, entry, controller.signal),
+        ),
+      );
+      const okSummaries = summaries.flatMap((result) =>
+        result.status === "fulfilled" && result.value !== null
+          ? [result.value]
+          : [],
       );
 
-      setData(sortRunSummaries(summaries));
+      setData(sortRunSummaries(okSummaries));
       setLoading(false);
     };
 
@@ -447,6 +445,29 @@ function useRunsDirectory(
   }, [data, refresh]);
 
   return { data, loading, error, refresh };
+}
+
+async function loadRunSummary(
+  path: string,
+  entry: DirEntry,
+  signal: AbortSignal,
+): Promise<RunSummary | null> {
+  try {
+    const [requestContent, stateContent] = await Promise.all([
+      readFile(`${path}/${entry.name}/request.json`, signal),
+      readFile(`${path}/${entry.name}/state.json`, signal),
+    ]);
+    return summarizeRunDirectory(
+      entry,
+      parseRunRequestRecord(JSON.parse(requestContent)),
+      parseRunStateRecord(JSON.parse(stateContent)),
+    );
+  } catch (error: unknown) {
+    if (isAbortError(error)) {
+      throw error;
+    }
+    return null;
+  }
 }
 
 function RunsDirectoryViewer({ path }: ViewerProps) {

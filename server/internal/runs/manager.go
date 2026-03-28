@@ -115,9 +115,10 @@ type activeRun struct {
 	outputFile *os.File
 	done       chan struct{}
 
-	mu              sync.Mutex
-	cancelRequested bool
-	cancelOnce      sync.Once
+	mu                   sync.Mutex
+	cancelRequested      bool
+	cancelSignalSentFlag bool
+	cancelOnce           sync.Once
 }
 
 func NewManager(ws *workspace.Workspace, opts ManagerOptions) *Manager {
@@ -379,7 +380,9 @@ func (m *Manager) waitForExit(active *activeRun, statePath string) {
 
 func (m *Manager) cancelActiveRun(active *activeRun) {
 	pid := active.cmd.Process.Pid
-	_ = terminateProcessGroup(pid, syscall.SIGTERM)
+	if err := terminateProcessGroup(pid, syscall.SIGTERM); err == nil {
+		active.setCancelSignalSent(true)
+	}
 
 	select {
 	case <-active.done:
@@ -423,7 +426,7 @@ func finalizeState(active *activeRun, err error, finishedAt time.Time) RunState 
 	}
 
 	if err == nil {
-		if active.wasCancelled() {
+		if active.cancelSignalSent() {
 			state.Status = StatusCancelled
 			zero := 0
 			state.ExitCode = &zero
@@ -519,4 +522,16 @@ func (a *activeRun) wasCancelled() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.cancelRequested
+}
+
+func (a *activeRun) setCancelSignalSent(sent bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.cancelSignalSentFlag = sent
+}
+
+func (a *activeRun) cancelSignalSent() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.cancelSignalSentFlag
 }
