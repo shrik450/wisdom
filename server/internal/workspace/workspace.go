@@ -2,6 +2,7 @@
 package workspace
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -29,6 +30,10 @@ type Workspace struct {
 type WalkEntry struct {
 	Path  string
 	IsDir bool
+}
+
+func IsExecutable(mode fs.FileMode) bool {
+	return mode.IsRegular() && mode&0o111 != 0
 }
 
 var (
@@ -92,11 +97,7 @@ func (w *Workspace) ReadFile(name string) ([]byte, error) {
 }
 
 func (w *Workspace) WriteFile(name string, data []byte, perm fs.FileMode) error {
-	p, err := w.resolve(name)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(p, data, perm)
+	return w.WriteStream(name, bytes.NewReader(data), perm)
 }
 
 // WriteStream atomically writes the contents of r to name. It streams through
@@ -109,6 +110,10 @@ func (w *Workspace) WriteFile(name string, data []byte, perm fs.FileMode) error 
 // into place.
 func (w *Workspace) WriteStream(name string, r io.Reader, perm fs.FileMode) error {
 	p, err := w.resolve(name)
+	if err != nil {
+		return err
+	}
+	perm, err = w.existingPermOrDefault(name, perm)
 	if err != nil {
 		return err
 	}
@@ -146,6 +151,17 @@ func (w *Workspace) WriteStream(name string, r io.Reader, perm fs.FileMode) erro
 	}
 	tmpName = "" // prevent deferred cleanup
 	return nil
+}
+
+func (w *Workspace) existingPermOrDefault(name string, fallback fs.FileMode) (fs.FileMode, error) {
+	info, err := w.Stat(name)
+	if err == nil {
+		return info.Mode().Perm(), nil
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return fallback, nil
+	}
+	return 0, err
 }
 
 func moveTempFileAcrossFilesystems(src, dst string, perm fs.FileMode) error {

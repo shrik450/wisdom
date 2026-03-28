@@ -12,6 +12,7 @@ import (
 
 	"github.com/shrik450/wisdom/internal/api"
 	"github.com/shrik450/wisdom/internal/middleware"
+	"github.com/shrik450/wisdom/internal/runs"
 	"github.com/shrik450/wisdom/internal/ui"
 	"github.com/shrik450/wisdom/internal/workspace"
 )
@@ -59,9 +60,10 @@ func main() {
 
 	addr := os.Getenv("WISDOM_ADDR")
 	addrStr := addr + ":" + port
+	runManager := runs.NewManager(ws, runs.ManagerOptions{})
 
 	mux := http.NewServeMux()
-	mux.Handle("/api/", api.APIHandler())
+	mux.Handle("/api/", api.APIHandler(api.HandlerOptions{RunManager: runManager}))
 	mux.Handle("/", ui.FileServer(uiDir))
 
 	handler := middleware.RequestLogger(mux, logger)
@@ -95,6 +97,11 @@ func main() {
 		logger.Error("server error", "err", err)
 	}
 
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := runManager.Shutdown(shutdownCtx); err != nil && err != context.Canceled && err != context.DeadlineExceeded {
+		logger.Error("run manager shutdown error", "err", err)
+	}
 	shutdownErr := server.Shutdown(context.Background())
 	if shutdownErr != nil {
 		logger.Error("shutdown error", "err", shutdownErr)
