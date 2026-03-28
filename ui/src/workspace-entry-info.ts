@@ -16,7 +16,10 @@ export interface WorkspaceEntryInfo {
   contentType: string | null;
   size: number | null;
   lastModified: string | null;
+  isExecutable: boolean;
 }
+
+const EXECUTABLE_HEADER = "X-Wisdom-Is-Executable";
 
 function pathSegments(path: string): string[] {
   return normalizeWorkspacePath(path)
@@ -71,6 +74,7 @@ function buildEntry(
   contentType: string | null = null,
   size: number | null = null,
   lastModified: string | null = null,
+  isExecutable = false,
 ): WorkspaceEntryInfo {
   const normalizedPath = normalizeWorkspacePath(path);
   const name = entryName(normalizedPath);
@@ -83,7 +87,12 @@ function buildEntry(
     contentType,
     size,
     lastModified,
+    isExecutable,
   };
+}
+
+function parseExecutable(header: string | null): boolean {
+  return header === "true";
 }
 
 export async function getWorkspaceEntryInfo(
@@ -108,5 +117,13 @@ export async function getWorkspaceEntryInfo(
 
   const size = parseSize(res.headers.get("Content-Length"));
   const lastModified = res.headers.get("Last-Modified");
-  return buildEntry(normalizedPath, "file", contentType, size, lastModified);
+  const isExecutable = parseExecutable(res.headers.get(EXECUTABLE_HEADER));
+  return buildEntry(
+    normalizedPath,
+    "file",
+    contentType,
+    size,
+    lastModified,
+    isExecutable,
+  );
 }

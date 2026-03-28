@@ -3,6 +3,7 @@ export interface DirEntry {
   size: number;
   modTime: string;
   isDir: boolean;
+  isExecutable: boolean;
 }
 
 export function sortDirEntries(entries: DirEntry[]): DirEntry[] {

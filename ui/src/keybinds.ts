@@ -2,6 +2,7 @@ import { defaultKeybinds as paletteKeybinds } from "./components/command-palette
 import { defaultKeybinds as directoryKeybinds } from "./viewers/directory-viewer";
 import { defaultKeybinds as editorKeybinds } from "./viewers/editor/editor-viewer";
 import { defaultKeybinds as plainTextKeybinds } from "./viewers/plain-text-viewer";
+import { runViewerKeybinds } from "./viewers/run-viewers";
 import type { KeyBindingDef } from "./keyboard/keybind-state-machine";
 
 export const keybinds: KeyBindingDef[] = [
@@ -15,6 +16,7 @@ export const keybinds: KeyBindingDef[] = [
   ...directoryKeybinds,
   ...plainTextKeybinds,
   ...editorKeybinds,
+  ...runViewerKeybinds,
 
   // -- Insert mode: shell defaults --
   { mode: "insert", keys: "Escape", action: "app.blur" },

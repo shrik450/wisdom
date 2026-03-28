@@ -50,6 +50,7 @@ test("detects directory from dirlist content type", async () => {
     assert.equal(info.contentType, null);
     assert.equal(info.size, null);
     assert.equal(info.lastModified, null);
+    assert.equal(info.isExecutable, false);
   } finally {
     globalThis.fetch = previousFetch;
   }
@@ -78,6 +79,7 @@ test("classifies JSON file as file, not directory", async () => {
     const info = await getWorkspaceEntryInfo("data/entries.json");
     assert.equal(info.kind, "file");
     assert.equal(info.contentType, "application/json");
+    assert.equal(info.isExecutable, false);
   } finally {
     globalThis.fetch = previousFetch;
   }
@@ -92,6 +94,7 @@ test("detects file metadata from non-directory payload", async () => {
         "Content-Type": "text/markdown",
         "Content-Length": "9",
         "Last-Modified": "Wed, 19 Feb 2026 12:00:00 GMT",
+        "X-Wisdom-Is-Executable": "true",
       },
     });
   }) as typeof fetch;
@@ -105,6 +108,7 @@ test("detects file metadata from non-directory payload", async () => {
     assert.equal(info.contentType, "text/markdown");
     assert.equal(info.size, 9);
     assert.equal(info.lastModified, "Wed, 19 Feb 2026 12:00:00 GMT");
+    assert.equal(info.isExecutable, true);
   } finally {
     globalThis.fetch = previousFetch;
   }
@@ -125,6 +129,7 @@ test("returns missing entry metadata for 404", async () => {
     assert.equal(info.contentType, null);
     assert.equal(info.size, null);
     assert.equal(info.lastModified, null);
+    assert.equal(info.isExecutable, false);
   } finally {
     globalThis.fetch = previousFetch;
   }
@@ -158,6 +163,7 @@ test("captures Content-Type for file responses", async () => {
     const info = await getWorkspaceEntryInfo("notes/readme.md");
     assert.equal(info.kind, "file");
     assert.equal(info.contentType, "text/markdown");
+    assert.equal(info.isExecutable, false);
   } finally {
     globalThis.fetch = previousFetch;
   }
@@ -176,6 +182,7 @@ test("captures Content-Type for binary file responses", async () => {
     const info = await getWorkspaceEntryInfo("images/photo.png");
     assert.equal(info.kind, "file");
     assert.equal(info.contentType, "image/png");
+    assert.equal(info.isExecutable, false);
   } finally {
     globalThis.fetch = previousFetch;
   }
@@ -192,6 +199,7 @@ test("contentType is null when no Content-Type header on file response", async (
     assert.equal(info.kind, "file");
     assert.equal(info.contentType, null);
     assert.equal(info.lastModified, null);
+    assert.equal(info.isExecutable, false);
   } finally {
     globalThis.fetch = previousFetch;
   }

@@ -21,6 +21,7 @@ function entry(
     contentType: "text/plain",
     size: null,
     lastModified: null,
+    isExecutable: false,
     ...overrides,
   };
 }
